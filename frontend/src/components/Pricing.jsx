@@ -1,5 +1,8 @@
+import {useNavigate} from 'react-router-dom'
+
 
 const Pricing = () => {
+  const navigate = useNavigate()
     return (
       <section className="bg-gradient-to-r from-[#E0F2FE] to-[#ECFDF5] py-16 px-6">
         <div className="max-w-6xl mx-auto text-center">
@@ -24,7 +27,7 @@ const Pricing = () => {
                 <li>✅ Basic Transactions</li>
                 <li>✅ Email Support</li>
               </ul>
-              <button className="mt-6 bg-[#FACC15] text-black font-semibold px-6 py-3 rounded-lg hover:bg-yellow-400">
+              <button onClick={()=>navigate('/pay')} className="mt-6 bg-[#FACC15] text-black font-semibold px-6 py-3 rounded-lg hover:bg-yellow-400">
                 Get Started
               </button>
             </div>
@@ -39,7 +42,7 @@ const Pricing = () => {
                 <li>✅ Priority Support</li>
                 <li>✅ Advanced Features</li>
               </ul>
-              <button className="mt-6 bg-[#FACC15] text-black font-semibold px-6 py-3 rounded-lg hover:bg-yellow-400">
+              <button onClick={()=>navigate('/pay')} className="mt-6 bg-[#FACC15] text-black font-semibold px-6 py-3 rounded-lg hover:bg-yellow-400">
                 Choose Plan
               </button>
             </div>
@@ -54,7 +57,7 @@ const Pricing = () => {
                 <li>✅ 24/7 Priority Support</li>
                 <li>✅ All Features Unlocked</li>
               </ul>
-              <button className="mt-6 bg-[#FACC15] text-black font-semibold px-6 py-3 rounded-lg hover:bg-yellow-400">
+              <button onClick={()=>navigate('/pay')} className="mt-6 bg-[#FACC15] text-black font-semibold px-6 py-3 rounded-lg hover:bg-yellow-400">
                 Get Premium
               </button>
             </div>

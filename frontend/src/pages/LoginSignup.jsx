@@ -17,15 +17,19 @@ const LoginSignup = () => {
         const { name, value } = e.target;
 
         if (name === "phone") {
-            // Ensure phone number starts with 254 and is numeric
-            if (!value.startsWith("254")) {
+            if (value.startsWith("254") || value.startsWith("07")) {
+                // Allow only digits
+                if (/^\d+$/.test(value)) {
+                    setFormData({ ...formData, phone: value });
+                }
+            } else {
+                // Default to '254' if the number doesn't start with '254' or '07'
                 setFormData({ ...formData, phone: "254" });
-            } else if (/^\d+$/.test(value)) { // Allow only numbers
-                setFormData({ ...formData, phone: value });
             }
         } else {
             setFormData({ ...formData, [name]: value });
         }
+        
     };
 
     const toggleForm = () => {
@@ -39,18 +43,20 @@ const LoginSignup = () => {
                 ? "http://localhost:6500/api/members/login"
                 : "http://localhost:6500/api/members/register";
 
-            const { data } = await axios.post(url, formData);
+            const { data } = await axios.post(url, formData, {
+                withCredentials: true, // ✅ Enable cookies for token handling
+            });
 
             alert(data.message);
 
             if (isLogin) {
                 if (data.role === "admin") {
-                    navigate("/admin"); // Redirect to Admin Dashboard
+                    navigate("/admin");
                 } else {
-                    navigate("/"); // Redirect to Member Dashboard
+                    navigate("/");
                 }
             } else {
-                setIsLogin(true); // Switch to login after successful signup
+                setIsLogin(true);
             }
         } catch (error) {
             alert(error.response?.data?.msg || "Something went wrong");
@@ -69,31 +75,58 @@ const LoginSignup = () => {
                         <>
                             <div className="mb-4">
                                 <label className="block text-sm font-semibold">Name</label>
-                                <input type="text" name="name" value={formData.name} onChange={handleChange} required
-                                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none" />
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
+                                />
                             </div>
 
                             <div className="mb-4">
                                 <label className="block text-sm font-semibold">Phone</label>
-                                <input type="text" name="phone" value={formData.phone} onChange={handleChange} required
-                                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none" />
+                                <input
+                                    type="text"
+                                    name="phone"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
+                                />
                             </div>
                         </>
                     )}
 
                     <div className="mb-4">
                         <label className="block text-sm font-semibold">Email</label>
-                        <input type="email" name="email" value={formData.email} onChange={handleChange} required
-                            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none" />
+                        <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
+                        />
                     </div>
 
                     <div className="mb-4">
                         <label className="block text-sm font-semibold">Password</label>
-                        <input type="password" name="password" value={formData.password} onChange={handleChange} required
-                            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none" />
+                        <input
+                            type="password"
+                            name="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
+                        />
                     </div>
 
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-md">
+                    <button
+                        type="submit"
+                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-md"
+                    >
                         {isLogin ? "Login" : "Sign Up"}
                     </button>
                 </form>

@@ -88,8 +88,9 @@ db.connect((err) => {
             phone VARCHAR(20) NOT NULL,                 -- Payer's phone number
             status ENUM('pending', 'completed', 'failed') NOT NULL DEFAULT 'pending', -- Payment status
             date_paid TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Date of payment
-            transaction VARCHAR(255) UNIQUE NOT NULL,   -- Unique transaction ID
+            transaction_id VARCHAR(255) UNIQUE NOT NULL,   -- Unique transaction ID
             FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE -- Foreign key to members table
+            
         )
     `;
     db.query(paymentsTable, (err, result) => {

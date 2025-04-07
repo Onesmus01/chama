@@ -11,10 +11,17 @@ import Savings from './pages/Savings.jsx';
 import Dashboard from './admin/Dashboard.jsx'
 import Members from './admin/Members.jsx'
 import Payments from './admin/Payments.jsx'
+import Cookies from 'js-cookie'; // Import js-cookie to access cookies
+import Pricing from './components/Pricing.jsx'
+import Pay from './pages/Pay.jsx'
+
+
+// Protected Route Component
+
 
 // Protected Route Component
 const ProtectedRoute = ({ element }) => {
-  const token = localStorage.getItem("token");
+  const token = Cookies.get("token"); // Check the token from cookies
   return token ? element : <Navigate to="/login" replace />;
 };
 
@@ -32,11 +39,16 @@ const App = () => {
         <Route path="/admin" element={<Dashboard />} />
         <Route path="/payments" element={<Payments />} />
         <Route path='/members' element={<Members />} />
+        <Route path='/pricing' element={<Pricing />} />
+        <Route path='/pay' element={<Pay />} />
+
+
+
 
         
         {/* Protected Routes */}
-        <Route path="/transactions" element={<ProtectedRoute element={<Transaction />} />} />
-        <Route path="/savings" element={<ProtectedRoute element={<Savings />} />} />
+        <Route path="/transactions"  element={<Transaction />} />
+        <Route path="/savings"  element={<Savings />} />
       </Routes>
       <Footer />
     </div>
