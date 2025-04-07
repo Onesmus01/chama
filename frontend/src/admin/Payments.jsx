@@ -1,10 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";  // Import Axios
 
 const Payments = () => {
-    const [payments, setPayments] = useState([
-        { name: "John Doe", amount: 500, phone: "123-456-7890", status: "Completed", transaction: "TXN12345", date_paid: new Date().toLocaleDateString() },
-        { name: "Jane Smith", amount: 700, phone: "987-654-3210", status: "Pending", transaction: "TXN67890", date_paid: new Date().toLocaleDateString() },
-    ]);
+    const [payments, setPayments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        // Fetch payment data from the backend when the component mounts
+        const fetchPayments = async () => {
+            try {
+                const response = await axios.get("http://localhost:6500/api/payment/mpesa/pay"); // Replace with your API endpoint
+                setPayments(response.data); // Assuming the data returned is an array of payments
+            } catch (err) {
+                setError("Error fetching payment data");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchPayments();
+    }, []);
+
+    if (loading) return <div>Loading...</div>;
+    if (error) return <div>{error}</div>;
 
     return (
         <div className="container mx-auto p-6">

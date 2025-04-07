@@ -1,7 +1,8 @@
 import { FaShieldAlt, FaPiggyBank, FaMoneyBillWave } from "react-icons/fa";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 
 const LearnMore = () => {
+  const navigate = useNavigate()
   return (
     <section className="bg-gradient-to-b from-[#0A2342] to-[#117A7A] min-h-screen text-white">
       {/* Hero Section */}
@@ -55,7 +56,7 @@ const LearnMore = () => {
           Join thousands of users who trust ChamaPay for their financial needs. Sign up today and take control of your transactions.
         </p>
         <NavLink to="/signup">
-          <button className="mt-6 bg-[#0D9488] hover:bg-[#117A7A] text-white font-semibold py-3 px-6 rounded-full text-lg shadow-md transition duration-300">
+          <button onClick={()=> navigate('/pricing')} className="mt-6 bg-[#0D9488] hover:bg-[#117A7A] text-white font-semibold py-3 px-6 rounded-full text-lg shadow-md transition duration-300">
             Get Started
           </button>
         </NavLink>

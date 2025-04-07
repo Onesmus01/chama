@@ -26,7 +26,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Validate phone number format
-    const phoneRegex = /^254\d{9}$/; // Ensures phone starts with 254 and has 12 digits
+    const phoneRegex = /^(254\d{9}|07\d{8})$/;
 
     if (!phoneRegex.test(phone)) {
         return res.status(400).json({ success: false, msg: 'Phone number must start with 254 and be exactly 12 digits long' });

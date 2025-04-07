@@ -3,20 +3,22 @@ import { NavLink } from "react-router-dom";
 import { HiOutlineMenu, HiX } from "react-icons/hi"; // Menu icons
 import { MdDashboard, MdSavings, MdAttachMoney, MdContacts } from "react-icons/md"; // Feature icons
 import { FaUserCircle } from "react-icons/fa"; // Profile icon
+import Cookies from "js-cookie"; // Import js-cookie for handling cookies
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
-    setIsAuthenticated(!!localStorage.getItem("token"));
-  }, []);
+    // Check for the presence of the authentication token in cookies
+    setIsAuthenticated(!!Cookies.get("token")); // Look for the token cookie
+  }, [isAuthenticated]); // Re-run when `isAuthenticated` changes
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    setIsAuthenticated(false);
-    setShowDropdown(false);
+    Cookies.remove("token"); // Remove the token from cookies
+    setIsAuthenticated(false); // Update state to reflect logout
+    setShowDropdown(false); // Close the dropdown if open
   };
 
   return (
@@ -40,14 +42,18 @@ const Navbar = () => {
               <MdDashboard className="text-lg" />
               <span>Dashboard</span>
             </NavLink>
-            <NavLink to="/savings" className="flex items-center text-white hover:text-gray-300 space-x-2">
-              <MdSavings className="text-lg" />
-              <span>Savings</span>
-            </NavLink>
-            <NavLink to="/transactions" className="flex items-center text-white hover:text-gray-300 space-x-2">
-              <MdAttachMoney className="text-lg" />
-              <span>Transactions</span>
-            </NavLink>
+
+              <>
+                <NavLink to="/savings" className="flex items-center text-white hover:text-gray-300 space-x-2">
+                  <MdSavings className="text-lg" />
+                  <span>Savings</span>
+                </NavLink>
+                <NavLink to="/transactions" className="flex items-center text-white hover:text-gray-300 space-x-2">
+                  <MdAttachMoney className="text-lg" />
+                  <span>Transactions</span>
+                </NavLink>
+              </>
+
             <NavLink to="/contact" className="flex items-center text-white hover:text-gray-300 space-x-2">
               <MdContacts className="text-lg" />
               <span>Contact</span>
@@ -71,7 +77,7 @@ const Navbar = () => {
                   ) : (
                     <NavLink 
                       to="/login" 
-                      className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
+                      className="block  px-4 py-2 text-gray-800 hover:bg-gray-200"
                     >
                       Login
                     </NavLink>
@@ -90,14 +96,20 @@ const Navbar = () => {
             <MdDashboard className="text-lg" />
             <span>Dashboard</span>
           </NavLink>
-          <NavLink to="/savings" className="block flex items-center justify-center space-x-2" onClick={() => setIsOpen(false)}>
-            <MdSavings className="text-lg" />
-            <span>Savings</span>
-          </NavLink>
-          <NavLink to="/transactions" className="block flex items-center justify-center space-x-2" onClick={() => setIsOpen(false)}>
-            <MdAttachMoney className="text-lg" />
-            <span>Transactions</span>
-          </NavLink>
+
+          {isAuthenticated && (
+            <>
+              <NavLink to="/savings" className="block flex items-center justify-center space-x-2" onClick={() => setIsOpen(false)}>
+                <MdSavings className="text-lg" />
+                <span>Savings</span>
+              </NavLink>
+              <NavLink to="/transactions" className="block flex items-center justify-center space-x-2" onClick={() => setIsOpen(false)}>
+                <MdAttachMoney className="text-lg" />
+                <span>Transactions</span>
+              </NavLink>
+            </>
+          )}
+
           <NavLink to="/contact" className="block flex items-center justify-center space-x-2" onClick={() => setIsOpen(false)}>
             <MdContacts className="text-lg" />
             <span>Contact</span>
@@ -124,7 +136,7 @@ const Navbar = () => {
           </div>
         </div>
       )}
-
+      
       {/* Ensure Content is Below the Navbar */}
       <div className="pt-[80px]">
         {/* Page content goes here */}

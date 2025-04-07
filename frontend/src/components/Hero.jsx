@@ -38,7 +38,7 @@ const Hero = () => {
                     </div>
 
                     {/* Call to Action Button */}
-                    <button onClick={()=>navigate('/login')} className="bg-[#FACC15] text-[#111827] font-semibold px-6 py-3 rounded-xl shadow-md hover:bg-yellow-400 transition-all duration-300">
+                    <button onClick={()=>navigate('/pricing')} className="bg-[#FACC15] text-[#111827] font-semibold px-6 py-3 rounded-xl shadow-md hover:bg-yellow-400 transition-all duration-300">
                         Get Started
                     </button>
                 </div>
