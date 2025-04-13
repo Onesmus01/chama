@@ -13,8 +13,6 @@ import {authorize} from '../middleware/authorize.js'
 dotenv.config(); 
 
 const router = express.Router();
-
-
 // ✔ Register Member
 router.post('/register', async (req, res) => {
     console.log("Incoming request body:", req.body);
@@ -81,8 +79,6 @@ router.post('/register', async (req, res) => {
     }
 });
 
-
-
 // ✔ Login Member
 router.post('/login', (req, res) => {
     const { email, password } = req.body;
@@ -135,9 +131,6 @@ router.post('/login', (req, res) => {
     });
 });
 
-
-
-
 //single member
 router.get('/:id', (req, res) => {
     const memberId = req.params.id;
@@ -171,7 +164,7 @@ router.get('/:id', (req, res) => {
 });
 
 //delete member
-router.delete('/:id', (req, res) => {
+router.delete('/:id/delete', (req, res) => {
     const { id } = req.params;
     
     const sql = `DELETE FROM members WHERE id = ?`;
@@ -266,15 +259,49 @@ router.get('/pdf', (req, res) => {
 });
 
 //all members
+// Endpoint to fetch all members and their payment status
+
 router.get('/all/all_members', (req, res) => {
     const sql = `SELECT * FROM members`;
 
     db.query(sql, (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
 
-        res.status(200).json({ success: true, members: results });
+        // Compute payment status for each member
+        const updatedMembers = results.map(member => {
+            let payment_status = 'pending';
+
+            if (member.amount === 50000) {
+                payment_status = 'completed';
+            } else if (member.amount < 50000) {
+                payment_status = 'balance';
+            } else if (member.amount > 50000) {
+                payment_status = 'bonus';
+            }
+
+            return {
+                id: member.id,
+                name: member.name,
+                email: member.email,
+                phone: member.phone,
+                amount: member.amount,
+                role: member.role,
+                payment_status, // dynamically set
+                created_at: member.created_at,
+                date: member.date
+            };
+        });
+
+        // Respond with updated members
+        res.status(200).json({
+            success: true,
+            members: updatedMembers
+        });
     });
 });
+
 
 router.get("/count", (req, res) => {
     db.query("SELECT COUNT(*) AS total_members FROM members", (err, rows) => {
@@ -282,8 +309,6 @@ router.get("/count", (req, res) => {
         res.json(rows[0]);
     });
 });
-
-
 
 //profile image
 const upload = multer({ storage: multer.memoryStorage() });
@@ -308,25 +333,31 @@ router.put('/:id/profile', upload.single('profile_picture'), async (req, res) =>
     }
 });
 
-//update member
-router.put('/:id', (req, res) => {
-    const { name, email, phone } = req.body;
+
+router.put('/updating/:id/updated', (req, res) => {
+    const { name, phone, date } = req.body;
     const memberId = req.params.id;
 
-    if (!name || !email || !phone) {
-        return res.status(400).json({ error: 'All fields are required' });
+    console.log("Request body:", req.body); // Log the data received
+
+    if (!name || !phone || !date) {
+        return res.status(400).json({ success: false, message: 'All fields (name, phone, date) are required' });
     }
 
-    const sql = `UPDATE members SET name = ?, email = ?, phone = ? WHERE id = ?`;
+    const sql = `UPDATE members SET name = ?, phone = ?, date = ? WHERE id = ?`;
 
-    db.query(sql, [name, email, phone, memberId], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Member not found' });
+    db.query(sql, [name, phone, date, memberId], (err, result) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ success: false, message: err.message });
         }
 
-        res.json({ message: 'Member updated successfully' });
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Member not found' });
+        }
+
+        res.status(200).json({ success: true, message: 'Member updated successfully' });
     });
 });
+
 export default router;

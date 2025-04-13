@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";  // Import Axios
+import axios from "axios";
 
 const Payments = () => {
     const [payments, setPayments] = useState([]);
@@ -7,23 +7,51 @@ const Payments = () => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Fetch payment data from the backend when the component mounts
-        const fetchPayments = async () => {
+        const fetchPaymentsAndMembers = async () => {
             try {
-                const response = await axios.get("http://localhost:6500/api/payment/mpesa/pay"); // Replace with your API endpoint
-                setPayments(response.data); // Assuming the data returned is an array of payments
+                const [paymentsRes, membersRes] = await Promise.all([
+                    axios.get("http://localhost:6500/api/payment/mpesa/pay"),
+                    axios.get("http://localhost:6500/api/members/all/all_members")
+                ]);
+
+                const paymentsData = Array.isArray(paymentsRes.data)
+                    ? paymentsRes.data
+                    : paymentsRes.data?.payments || [];
+
+                const membersData = Array.isArray(membersRes.data)
+                    ? membersRes.data
+                    : membersRes.data?.members || [];
+
+                // Map member _id to name
+                const memberMap = {};
+                membersData.forEach(member => {
+                    // Ensure mapping correctly uses member._id
+                    memberMap[member._id] = member.name;
+                });
+
+                // Add name to each payment by checking payment.member_id
+                const enrichedPayments = paymentsData.map(payment => {
+                    const memberName = memberMap[payment.member_id] || "Unknown"; 
+                    return {
+                        ...payment,
+                        name: memberName,
+                    };
+                });
+
+                setPayments(enrichedPayments);
             } catch (err) {
-                setError("Error fetching payment data");
+                console.error("Error fetching data:", err);
+                setError("Failed to fetch payment or member data");
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchPayments();
+        fetchPaymentsAndMembers();
     }, []);
 
-    if (loading) return <div>Loading...</div>;
-    if (error) return <div>{error}</div>;
+    if (loading) return <div className="text-center p-4">Loading...</div>;
+    if (error) return <div className="text-red-600 text-center p-4">{error}</div>;
 
     return (
         <div className="container mx-auto p-6">
@@ -33,7 +61,7 @@ const Payments = () => {
                     <thead className="bg-gray-800 text-white">
                         <tr>
                             <th className="p-3 text-left">Name</th>
-                            <th className="p-3 text-left">Amount ($)</th>
+                            <th className="p-3 text-left">Amount (kes)</th>
                             <th className="p-3 text-left">Phone</th>
                             <th className="p-3 text-left">Status</th>
                             <th className="p-3 text-left">Transaction</th>
@@ -44,9 +72,11 @@ const Payments = () => {
                         {payments.map((payment, index) => (
                             <tr key={index} className="border-b hover:bg-gray-100">
                                 <td className="p-3">{payment.name}</td>
-                                <td className="p-3">${payment.amount}</td>
+                                <td className="p-3">{payment.amount}</td>
                                 <td className="p-3">{payment.phone}</td>
-                                <td className={`p-3 font-semibold ${payment.status === "Completed" ? "text-green-600" : "text-red-600"}`}>{payment.status}</td>
+                                <td className={`p-3 font-semibold ${payment.status === "Completed" ? "text-green-600" : "text-red-600"}`}>
+                                    {payment.status}
+                                </td>
                                 <td className="p-3">{payment.transaction}</td>
                                 <td className="p-3">{payment.date_paid}</td>
                             </tr>

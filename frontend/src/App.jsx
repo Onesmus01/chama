@@ -14,6 +14,7 @@ import Payments from './admin/Payments.jsx'
 import Cookies from 'js-cookie'; // Import js-cookie to access cookies
 import Pricing from './components/Pricing.jsx'
 import Pay from './pages/Pay.jsx'
+import Edit from './admin/Edit.jsx'
 
 
 // Protected Route Component
@@ -41,6 +42,8 @@ const App = () => {
         <Route path='/members' element={<Members />} />
         <Route path='/pricing' element={<Pricing />} />
         <Route path='/pay' element={<Pay />} />
+        <Route path='/edit' element={<Edit />} />
+
 
 
 
