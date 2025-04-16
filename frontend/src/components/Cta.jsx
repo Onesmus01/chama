@@ -1,4 +1,8 @@
+import {useNavigate} from 'react-router-dom'
+
 const CTASection = () => {
+
+const navigate = useNavigate()
     return (
       <section className="bg-gradient-to-r from-[#1E3A8A] to-[#0D9488] text-white py-16 text-center">
         <div className="max-w-5xl mx-auto">
@@ -12,7 +16,7 @@ const CTASection = () => {
             <div className="w-16 h-1 bg-[#FACC15] rounded-lg"></div>
           </div>
   
-          <button className="bg-[#FACC15] text-[#1E3A8A] font-semibold px-6 py-3 rounded-lg mt-6 shadow-md hover:bg-yellow-400 transition">
+          <button onClick={()=>navigate('/pricing')} className="bg-[#FACC15] text-[#1E3A8A] font-semibold px-6 py-3 rounded-lg mt-6 shadow-md hover:bg-yellow-400 transition">
             Get Started Now
           </button>
         </div>

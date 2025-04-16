@@ -55,7 +55,7 @@ const LearnMore = () => {
         <p className="text-lg opacity-80 max-w-2xl mx-auto">
           Join thousands of users who trust ChamaPay for their financial needs. Sign up today and take control of your transactions.
         </p>
-        <NavLink to="/signup">
+        <NavLink to="/pricing">
           <button onClick={()=> navigate('/pricing')} className="mt-6 bg-[#0D9488] hover:bg-[#117A7A] text-white font-semibold py-3 px-6 rounded-full text-lg shadow-md transition duration-300">
             Get Started
           </button>

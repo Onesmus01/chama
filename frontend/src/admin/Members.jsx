@@ -145,6 +145,7 @@ const Edit = () => {
               <th className="p-4 border">#</th>
               <th className="p-4 border"><FaUser className="inline mr-2" /> Member ID</th>
               <th className="p-4 border"><FaUser className="inline mr-2" /> Name</th>
+
               <th className="p-4 border"><FaReceipt className="inline mr-2" /> Transaction ID</th>
               <th className="p-4 border"><FaMoneyBillWave className="inline mr-2" /> Amount (KES)</th>
               <th className="p-4 border"><FaRegCalendarAlt className="inline mr-2" /> Date Paid</th>

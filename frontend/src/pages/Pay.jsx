@@ -35,7 +35,6 @@ const Pay = () => {
         setStatus("pending");
         setTransactionId(transaction_id);
 
-        // Start polling for status every 5s
         const pollId = setInterval(() => checkPaymentStatus(transaction_id), 5000);
         setIntervalId(pollId);
       } else if (success) {

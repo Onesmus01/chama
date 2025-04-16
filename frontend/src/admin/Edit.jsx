@@ -22,12 +22,12 @@ const Edit = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch all members from the API
   useEffect(() => {
     const fetchMembers = async () => {
       try {
         const { data } = await axios.get(
-          "http://localhost:6500/api/members/all/all_members"
+          "http://localhost:6500/api/members/all/all_members",
+          { withCredentials: true }
         );
         setMembers(Array.isArray(data.members) ? data.members : []);
       } catch (error) {
@@ -39,7 +39,6 @@ const Edit = () => {
     fetchMembers();
   }, []);
 
-  // Handle input changes in the form
   const handleInputChange = ({ target: { name, value } }) => {
     setFormData((prevData) => ({
       ...prevData,
@@ -47,7 +46,6 @@ const Edit = () => {
     }));
   };
 
-  // Handle member selection for editing
   const handleEdit = (member) => {
     setSelectedMember(member);
     setFormData({
@@ -59,7 +57,6 @@ const Edit = () => {
     setEditModalOpen(true);
   };
 
-  // Update the member data
   const handleUpdate = async () => {
     if (!selectedMember || !formData.name || !formData.phone || !formData.amount || !formData.date) {
       setError("Please fill in all fields.");
@@ -70,7 +67,8 @@ const Edit = () => {
     try {
       const { status } = await axios.put(
         `http://localhost:6500/api/members/updating/${selectedMember.id}/updated`,
-        formData
+        formData,
+        { withCredentials: true }
       );
 
       if (status === 200) {
@@ -89,12 +87,12 @@ const Edit = () => {
     }
   };
 
-  // Delete a member
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this member?")) {
       try {
         const { status } = await axios.delete(
-          `http://localhost:6500/api/members/${id}/delete`
+          `http://localhost:6500/api/members/${id}/delete`,
+          { withCredentials: true }
         );
 
         if (status === 200) {
@@ -107,7 +105,6 @@ const Edit = () => {
     }
   };
 
-  // Close the edit modal
   const closeModal = () => {
     setEditModalOpen(false);
     setSelectedMember(null);
@@ -119,8 +116,7 @@ const Edit = () => {
     <div className="p-6 bg-gray-100 min-h-screen">
       <h1 className="text-3xl font-bold mb-6 text-gray-800">Members Management</h1>
       {error && <div className="text-red-500 mb-4">{error}</div>}
-      
-      {/* Members Table */}
+
       <div className="overflow-x-auto bg-white shadow-lg rounded-lg p-6">
         <table className="w-full border-collapse">
           <thead>
@@ -165,7 +161,6 @@ const Edit = () => {
         </table>
       </div>
 
-      {/* Edit Member Modal */}
       {editModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
