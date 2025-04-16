@@ -5,13 +5,12 @@ import db from '../config/db.js';
 import validator from 'validator';
 
 dotenv.config();
-
 const paymentRouter = express.Router();
 
-// Sanitize input
+// ✅ Utility: Sanitize input
 const sanitizeInput = (input) => validator.escape(String(input).trim());
 
-// Environment variables
+// ✅ Load environment variables
 const {
   MPESA_CONSUMER_KEY,
   MPESA_CONSUMER_SECRET,
@@ -34,7 +33,7 @@ const getMpesaToken = async () => {
   return response.data.access_token;
 };
 
-// 💸 Initiate Payment (STK Push)
+// 💸 Initiate M-Pesa STK Push Payment
 paymentRouter.post('/mpesa/pay', async (req, res) => {
   const phone = sanitizeInput(req.body.phone);
   const amount = parseFloat(req.body.amount);
@@ -45,10 +44,7 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
 
   db.query('SELECT id FROM members WHERE phone = ?', [phone], async (err, results) => {
     if (err) return res.status(500).json({ success: false, toast: true, message: 'Database error when finding member.' });
-
-    if (results.length === 0) {
-      return res.status(404).json({ success: false, toast: true, message: 'Member not found.' });
-    }
+    if (results.length === 0) return res.status(404).json({ success: false, toast: true, message: 'Member not found.' });
 
     const memberId = results[0].id;
 
@@ -77,24 +73,24 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
 
       const checkoutId = data.CheckoutRequestID;
 
-      const insertQuery = `
-        INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid)
-        VALUES (?, ?, ?, 'pending', ?, NOW())
-      `;
+      db.query(
+        `INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid)
+         VALUES (?, ?, ?, 'pending', ?, NOW())`,
+        [memberId, phone, amount, checkoutId],
+        (err) => {
+          if (err) {
+            console.error('Error saving payment:', err);
+            return res.status(500).json({ success: false, toast: true, message: 'Error saving payment.' });
+          }
 
-      db.query(insertQuery, [memberId, phone, amount, checkoutId], (err) => {
-        if (err) {
-          console.error('Error saving payment:', err);
-          return res.status(500).json({ success: false, toast: true, message: 'Error saving payment.' });
+          res.json({
+            success: true,
+            toast: true,
+            message: 'Payment initiated. Enter your M-Pesa PIN.',
+            transaction_id: checkoutId,
+          });
         }
-
-        res.json({
-          success: true,
-          toast: true,
-          message: 'Payment initiated. Enter your M-Pesa PIN.',
-          transaction_id: checkoutId,
-        });
-      });
+      );
     } catch (error) {
       console.error('STK Push Error:', error.response?.data || error.message);
       res.status(500).json({ success: false, toast: true, message: 'STK Push failed. Please try again.' });
@@ -105,9 +101,7 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
 // 🔁 M-Pesa Callback Webhook
 paymentRouter.post('/mpesa/webhook', (req, res) => {
   let data;
-
   try {
-    // Parse raw buffer to JSON
     data = JSON.parse(req.body.toString());
   } catch (err) {
     console.error('❌ Failed to parse webhook JSON:', err);
@@ -115,7 +109,6 @@ paymentRouter.post('/mpesa/webhook', (req, res) => {
   }
 
   console.log('🔔 Incoming Callback:', JSON.stringify(data, null, 2));
-
   const { stkCallback } = data?.Body || {};
 
   if (!stkCallback) {
@@ -141,7 +134,6 @@ paymentRouter.post('/mpesa/webhook', (req, res) => {
   );
 });
 
-
 // 🔍 Poll payment status by transaction ID
 paymentRouter.get('/mpesa/status/:transactionId', (req, res) => {
   const { transactionId } = req.params;
@@ -160,7 +152,7 @@ paymentRouter.get('/mpesa/status/:transactionId', (req, res) => {
   });
 });
 
-// 📊 Count total payments
+// 📊 Get total count of payments
 paymentRouter.get('/count', (req, res) => {
   db.query('SELECT COUNT(*) AS total_payments FROM payments', (err, results) => {
     if (err) return res.status(500).json({ success: false, message: 'Error counting payments.' });
@@ -168,13 +160,26 @@ paymentRouter.get('/count', (req, res) => {
   });
 });
 
-// 📋 Get all payments
+// 📋 Fetch all payments
 paymentRouter.get('/mpesa/pay', (req, res) => {
-  const query = 'SELECT name, amount, phone, status, transaction, date_paid FROM payments';
+  const query = `
+    SELECT  amount, phone, status, transaction, date_paid
+    FROM payments
+  `;
+  
   db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: 'Error fetching payments.' });
-    res.json(Array.isArray(result) ? result : { success: true, payments: result });
+    if (err) {
+      console.error("Database error:", err);  // Log the actual error for debugging
+      return res.status(500).json({ success: false, message: 'Error fetching payments.', error: err.message });
+    }
+
+    if (Array.isArray(result) && result.length > 0) {
+      return res.json({ success: true, payments: result });
+    } else {
+      return res.status(404).json({ success: false, message: 'No payments found.' });
+    }
   });
 });
+;
 
 export default paymentRouter;

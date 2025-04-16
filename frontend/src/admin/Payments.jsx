@@ -14,29 +14,21 @@ const Payments = () => {
                     axios.get("http://localhost:6500/api/members/all/all_members")
                 ]);
 
-                const paymentsData = Array.isArray(paymentsRes.data)
-                    ? paymentsRes.data
-                    : paymentsRes.data?.payments || [];
+                // Validate and extract data
+                const paymentsData = Array.isArray(paymentsRes.data) ? paymentsRes.data : paymentsRes.data?.payments || [];
+                const membersData = Array.isArray(membersRes.data) ? membersRes.data : membersRes.data?.members || [];
 
-                const membersData = Array.isArray(membersRes.data)
-                    ? membersRes.data
-                    : membersRes.data?.members || [];
+                // Create a map for member ID to name
+                const memberMap = membersData.reduce((acc, member) => {
+                    acc[member._id] = member.name || "Unknown";
+                    return acc;
+                }, {});
 
-                // Map member _id to name
-                const memberMap = {};
-                membersData.forEach(member => {
-                    // Ensure mapping correctly uses member._id
-                    memberMap[member._id] = member.name;
-                });
-
-                // Add name to each payment by checking payment.member_id
-                const enrichedPayments = paymentsData.map(payment => {
-                    const memberName = memberMap[payment.member_id] || "Unknown"; 
-                    return {
-                        ...payment,
-                        name: memberName,
-                    };
-                });
+                // Enhance payment data with member names
+                const enrichedPayments = paymentsData.map(payment => ({
+                    ...payment,
+                    name: memberMap[payment.member_id] || "Unknown",
+                }));
 
                 setPayments(enrichedPayments);
             } catch (err) {
@@ -61,7 +53,7 @@ const Payments = () => {
                     <thead className="bg-gray-800 text-white">
                         <tr>
                             <th className="p-3 text-left">Name</th>
-                            <th className="p-3 text-left">Amount (kes)</th>
+                            <th className="p-3 text-left">Amount (KES)</th>
                             <th className="p-3 text-left">Phone</th>
                             <th className="p-3 text-left">Status</th>
                             <th className="p-3 text-left">Transaction</th>

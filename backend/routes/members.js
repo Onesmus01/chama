@@ -8,34 +8,38 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import multer from 'multer'
 import {authorize} from '../middleware/authorize.js'
+import {verifyAdmin} from '../middleware/verifyAdmin.js'
 
 
 dotenv.config(); 
 
 const router = express.Router();
+
 // ✔ Register Member
 router.post('/register', async (req, res) => {
     console.log("Incoming request body:", req.body);
-
     const { name, email, phone, password, role = "member" } = req.body;
 
     if (!name || !email || !phone || !password) {
         return res.status(400).json({ success: false, msg: 'All fields are required' });
     }
 
-    // Validate phone number format
     const phoneRegex = /^(254\d{9}|07\d{8})$/;
-
     if (!phoneRegex.test(phone)) {
-        return res.status(400).json({ success: false, msg: 'Phone number must start with 254 and be exactly 12 digits long' });
+        return res.status(400).json({
+            success: false,
+            msg: 'Phone number must start with 254 and be exactly 12 digits long'
+        });
     }
 
     if (password.length < 6) {
-        return res.status(400).json({ success: false, msg: 'Password should be at least 6 characters long' });
+        return res.status(400).json({
+            success: false,
+            msg: 'Password should be at least 6 characters long'
+        });
     }
 
     try {
-        // Check if email or phone already exists
         const checkQuery = `SELECT * FROM members WHERE email = ? OR phone = ?`;
         db.query(checkQuery, [email, phone], async (err, result) => {
             if (err) {
@@ -44,13 +48,13 @@ router.post('/register', async (req, res) => {
             }
 
             if (result.length > 0) {
-                return res.status(400).json({ success: false, msg: 'Email or phone number already in use' });
+                return res.status(400).json({
+                    success: false,
+                    msg: 'Email or phone number already in use'
+                });
             }
 
-            // Hash password
             const hashedPassword = await bcrypt.hash(password, 10);
-
-            // Insert new member
             const insertQuery = `INSERT INTO members (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)`;
 
             db.query(insertQuery, [name, email, phone, hashedPassword, role], (err, result) => {
@@ -59,82 +63,117 @@ router.post('/register', async (req, res) => {
                     return res.status(500).json({ error: err.message });
                 }
 
-                // Generate JWT token
-                const token = jwt.sign({ email, role }, process.env.SECRET_KEY, { expiresIn: '1d' });
+                const newMemberId = result.insertId;
+                const token = jwt.sign(
+                    { id: newMemberId, email, role },
+                    process.env.SECRET_KEY,
+                    { expiresIn: '1d' }
+                );
 
+                // ✅ Set token in cookie
                 res.cookie('authToken', token, {
                     httpOnly: true,
-                    secure: true,
-                    sameSite: 'strict',
-                    maxAge: 24 * 60 * 60 * 1000
+                    secure: false,
+                    sameSite: 'lax',
+                    maxAge: 24 * 60 * 60 * 1000,
                 });
 
-                res.status(201).json({ message: '✅ Member registered successfully', token });
+                // ✅ Set token in response headers (for localStorage use)
+                res.setHeader('Authorization', `Bearer ${token}`);
+
+                return res.status(201).json({
+                    success: true,
+                    message: '✅ Member registered successfully',
+                    token
+                });
             });
         });
-
     } catch (error) {
         console.error("Error:", error);
         res.status(500).json({ error: 'Error hashing password' });
     }
 });
 
-// ✔ Login Member
-router.post('/login', (req, res) => {
+// LOGIN MEMBER
+router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
+    console.log("📥 Incoming login request:", req.body);
+
     if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
+        return res.status(400).json({ success: false, msg: 'Email and password are required' });
     }
 
-    const sql = `SELECT id, name, email, phone, password, role FROM members WHERE email = ?`; // Role added
+    try {
+        const sql = `SELECT id, name, email, phone, password, role FROM members WHERE email = ?`;
+        db.query(sql, [email], async (err, results) => {
+            if (err) {
+                console.error("❌ Database error:", err);
+                return res.status(500).json({ success: false, msg: 'Internal server error' });
+            }
 
-    db.query(sql, [email], async (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
+            if (results.length === 0) {
+                return res.status(401).json({ success: false, msg: 'Invalid email or password' });
+            }
 
-        if (results.length === 0) {
-            return res.status(401).json({ error: 'Invalid email or password' });
-        }
+            const member = results[0];
+            const isMatch = await bcrypt.compare(password, member.password);
 
-        const member = results[0];
+            if (!isMatch) {
+                return res.status(401).json({ success: false, msg: 'Invalid email or password' });
+            }
 
-        const isMatch = await bcrypt.compare(password, member.password);
-        if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid email or password' });
-        }
-
-        // Generate JWT Token with role
-        const token = jwt.sign(
-            { id: member.id, email: member.email, role: member.role },
-            process.env.SECRET_KEY,
-            { expiresIn: '1d' }
-        );
-
-        res.cookie('authToken', token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'strict',
-            maxAge: 24 * 60 * 60 * 1000, // 1 day
-        });
-
-        res.status(200).json({
-            message: 'Login successful',
-            member: {
+            const payload = {
                 id: member.id,
-                name: member.name,
                 email: member.email,
-                phone: member.phone,
-                role: member.role, // Role included in response
-            },
-            token,
+                role: member.role,
+            };
+
+            const token = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: '1d' });
+
+            // ✅ Set token in cookie
+            res.cookie('authToken', token, {
+                httpOnly: true,
+                secure: false,
+                sameSite: 'lax',
+                maxAge: 24 * 60 * 60 * 1000,
+            });
+
+            // ✅ Set token in header (for localStorage)
+            res.setHeader('Authorization', `Bearer ${token}`);
+
+            console.log("✅ Login successful. Token set in cookie and header.");
+
+            return res.status(200).json({
+                success: true,
+                message: 'Login successful',
+                member: {
+                    id: member.id,
+                    name: member.name,
+                    email: member.email,
+                    phone: member.phone,
+                    role: member.role,
+                },
+                token,
+            });
         });
-    });
+    } catch (error) {
+        console.error("🚨 Login error:", error);
+        return res.status(500).json({ success: false, msg: 'Login failed. Please try again.' });
+    }
 });
 
+
 //single member
-router.get('/:id', (req, res) => {
-    const memberId = req.params.id;
-    
+router.get('/saved/save/saving', authorize(['member','admin']), (req, res) => {
+    console.log("🔍 Member object:", req.member);
+
+    const memberId = req.member?.id;  // Use optional chaining to avoid errors
+
+    if (!memberId) {
+        return res.status(401).json({ message: "Unauthorized. No member ID found." });
+    }
+
     const sql = `
         SELECT 
             m.id AS member_id,
@@ -154,9 +193,56 @@ router.get('/:id', (req, res) => {
 
     db.query(sql, [memberId], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        
+
         if (results.length === 0) {
-            return res.status(404).json({ message: "Member not found" });
+            return res.status(404).json({ message: "Member not found." });
+        }
+
+        const memberInfo = {
+            name: results[0].name,
+            email: results[0].email,
+            phone: results[0].phone,
+            member_since: results[0].member_since,
+        };
+
+        const savings = results
+            .filter(entry => entry.amount !== null)
+            .map(entry => ({
+                amount: entry.amount,
+                payment_method: entry.payment_method,
+                transaction_id: entry.transaction_id,
+                payment_date: entry.payment_date,
+            }));
+
+        if (savings.length === 0) {
+            return res.status(200).json({
+                ...memberInfo,
+                savings: [],
+                message: "You have not contributed yet."
+            });
+        }
+
+        res.json({ ...memberInfo, savings });
+    });
+});
+
+router.get("/transact/transactions", authorize(['member','admin']), (req, res) => {
+    const memberId = req.member?.id;  // Using req.member.id
+
+    const sql = `
+        SELECT date_paid, amount, status,transaction
+        FROM payments
+        WHERE member_id = ?
+    `;
+
+    db.query(sql, [memberId], (err, results) => {
+        if (err) {
+            console.error('❌ Database query error:', err);  // Log the error for better debugging
+            return res.status(500).json({ message: "❌ Database query error" });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: "No transactions found for this member." });
         }
 
         res.json(results);
@@ -164,7 +250,7 @@ router.get('/:id', (req, res) => {
 });
 
 //delete member
-router.delete('/:id/delete', (req, res) => {
+router.delete('/:id/delete',verifyAdmin, (req, res) => {
     const { id } = req.params;
     
     const sql = `DELETE FROM members WHERE id = ?`;
@@ -181,7 +267,7 @@ router.delete('/:id/delete', (req, res) => {
 });
  
 //update member
-router.put('/:id', (req, res) => {
+router.put('/:id',verifyAdmin, (req, res) => {
     const { id } = req.params;
     const { name, email, phone } = req.body;
 
@@ -333,31 +419,51 @@ router.put('/:id/profile', upload.single('profile_picture'), async (req, res) =>
     }
 });
 
-
+//
 router.put('/updating/:id/updated', (req, res) => {
     const { name, phone, date } = req.body;
     const memberId = req.params.id;
 
-    console.log("Request body:", req.body); // Log the data received
+    // Log the incoming request data
+    console.log("Request body:", req.body); // Logs the data received in the request body
+    console.log("Member ID:", memberId); // Logs the member ID from the route parameter
 
+    // Validate input fields
     if (!name || !phone || !date) {
+        console.warn("Missing required fields: name, phone, or date");
         return res.status(400).json({ success: false, message: 'All fields (name, phone, date) are required' });
     }
 
+    // Log before making the database query
+    console.log("Preparing SQL query to update member...");
+
     const sql = `UPDATE members SET name = ?, phone = ?, date = ? WHERE id = ?`;
 
+    // Log the SQL query that will be executed (without sensitive data)
+    console.log("SQL query:", sql);
+
     db.query(sql, [name, phone, date, memberId], (err, result) => {
+        // Log any error from the query
         if (err) {
-            console.error(err);
+            console.error("Database error:", err); // Log database error
             return res.status(500).json({ success: false, message: err.message });
         }
 
+        // Log the result of the query
+        console.log("Database result:", result);
+
+        // Check if any rows were updated
         if (result.affectedRows === 0) {
+            console.warn(`No member found with ID: ${memberId}`);
             return res.status(404).json({ success: false, message: 'Member not found' });
         }
+
+        // Log successful update
+        console.log(`Member with ID ${memberId} successfully updated`);
 
         res.status(200).json({ success: true, message: 'Member updated successfully' });
     });
 });
+
 
 export default router;

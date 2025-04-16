@@ -1,62 +1,57 @@
 import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import Cookies from "js-cookie";
 
 const LoginSignup = () => {
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({
         name: "",
         email: "",
-        phone: "254",  // Default phone number starts with 254
+        phone: "254",
         password: "",
     });
 
     const navigate = useNavigate();
 
     const handleChange = (e) => {
+        e.preventDefault();
         const { name, value } = e.target;
 
         if (name === "phone") {
-            if (value.startsWith("254") || value.startsWith("07")) {
-                // Allow only digits
-                if (/^\d+$/.test(value)) {
-                    setFormData({ ...formData, phone: value });
-                }
+            if ((value.startsWith("254") || value.startsWith("07")) && /^\d+$/.test(value)) {
+                setFormData({ ...formData, phone: value });
             } else {
-                // Default to '254' if the number doesn't start with '254' or '07'
                 setFormData({ ...formData, phone: "254" });
             }
         } else {
             setFormData({ ...formData, [name]: value });
         }
-        
     };
 
-    const toggleForm = () => {
-        setIsLogin(!isLogin);
-    };
+    const toggleForm = () => setIsLogin(!isLogin);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        try {
-            const url = isLogin
-                ? "http://localhost:6500/api/members/login"
-                : "http://localhost:6500/api/members/register";
+        const endpoint = isLogin
+            ? "http://localhost:6500/api/members/login"
+            : "http://localhost:6500/api/members/register";
 
-            const { data } = await axios.post(url, formData, {
-                withCredentials: true, // ✅ Enable cookies for token handling
-            });
+        try {
+            const { data } = await axios.post(endpoint, formData);
 
             alert(data.message);
 
-            if (isLogin) {
-                if (data.role === "admin") {
-                    navigate("/admin");
-                } else {
-                    navigate("/");
-                }
+            if (isLogin && data.token) {
+                // Set the token in cookies and headers
+                Cookies.set("token", data.token, { expires: 7 }); // Set token in cookies for later use
+                axios.defaults.headers.Authorization = `Bearer ${data.token}`; // Set token in axios default headers
+
+                data.role === "admin" ? navigate("/admin") : navigate("/");
+                window.location.reload();
             } else {
                 setIsLogin(true);
+                window.location.reload();
             }
         } catch (error) {
             alert(error.response?.data?.msg || "Something went wrong");
@@ -73,55 +68,36 @@ const LoginSignup = () => {
                 <form onSubmit={handleSubmit}>
                     {!isLogin && (
                         <>
-                            <div className="mb-4">
-                                <label className="block text-sm font-semibold">Name</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    required
-                                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
-                                />
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-semibold">Phone</label>
-                                <input
-                                    type="text"
-                                    name="phone"
-                                    value={formData.phone}
-                                    onChange={handleChange}
-                                    required
-                                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
-                                />
-                            </div>
+                            <InputField
+                                label="Name"
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                            />
+                            <InputField
+                                label="Phone"
+                                type="text"
+                                name="phone"
+                                value={formData.phone}
+                                onChange={handleChange}
+                            />
                         </>
                     )}
-
-                    <div className="mb-4">
-                        <label className="block text-sm font-semibold">Email</label>
-                        <input
-                            type="email"
-                            name="email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
-                        />
-                    </div>
-
-                    <div className="mb-4">
-                        <label className="block text-sm font-semibold">Password</label>
-                        <input
-                            type="password"
-                            name="password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
-                        />
-                    </div>
+                    <InputField
+                        label="Email"
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                    />
+                    <InputField
+                        label="Password"
+                        type="password"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                    />
 
                     <button
                         type="submit"
@@ -133,13 +109,42 @@ const LoginSignup = () => {
 
                 <p className="text-center mt-4">
                     {isLogin ? "Don't have an account?" : "Already have an account?"}
-                    <span className="text-blue-400 cursor-pointer" onClick={toggleForm}>
-                        {isLogin ? " Sign up" : " Login"}
+                    <span
+                        className="text-blue-400 cursor-pointer ml-1"
+                        onClick={toggleForm}
+                    >
+                        {isLogin ? "Sign up" : "Login"}
                     </span>
                 </p>
+
+                {isLogin && (
+                    <div className="text-center mt-4">
+                        <button
+                            onClick={() => navigate("/admin")}
+                            className="text-sm text-yellow-400 hover:underline"
+                        >
+                            Admin? Go to Admin Page
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
+
+// Reusable input field component
+const InputField = ({ label, type, name, value, onChange }) => (
+    <div className="mb-4">
+        <label className="block text-sm font-semibold">{label}</label>
+        <input
+            type={type}
+            name={name}
+            value={value}
+            onChange={onChange}
+            required
+            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
+        />
+    </div>
+);
 
 export default LoginSignup;
