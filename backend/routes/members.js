@@ -15,7 +15,100 @@ dotenv.config();
 
 const router = express.Router();
 
+// backend/utils/sendEmail.js
+const sendEmail = async (to, subject, text) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,    // e.g. your_email@gmail.com
+        pass: process.env.EMAIL_PASS,    // Gmail app password, NOT your actual password
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to,
+      subject,
+      text,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log("✅ Email sent successfully");
+  } catch (err) {
+    console.error("❌ Email sending error:", err);
+    throw err;
+  }
+};
+
+
+
 // ✔ Register Member
+import nodemailer from "nodemailer";
+
+// Create a transporter to send emails using Gmail
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: "your-email@gmail.com", // 🔒 your Gmail
+        pass: "your-app-password"     // 🔒 app password from Google
+    },
+});
+
+// Function to send a welcome email to the new member
+const sendWelcomeEmail = async (userEmail, userName) => {
+    const mailOptions = {
+        from: "Chamapay 🏠 <your-email@gmail.com>",
+        to: userEmail,
+        subject: "🎉 Welcome to Chamapay!",
+        html: `
+            <h2 style="color: #4CAF50;">Welcome to Chamapay, ${userName}!</h2>
+            <p>We're thrilled to have you onboard. You are now officially a member of <strong>Chamapay</strong> – your trusted system for seamless rental property management and payments.</p>
+            <p>Here’s what you can do:</p>
+            <ul>
+                <li>🏠 Browse and rent property easily</li>
+                <li>💳 Pay securely from anywhere</li>
+                <li>📊 View rent history and receipts</li>
+                <li>⚙️ Enjoy a smooth, member-friendly dashboard</li>
+            </ul>
+            <p>If you need help, feel free to reach out. We’re always here for you!</p>
+            <p style="margin-top: 20px;">Warm regards,<br />The Chamapay Team 💚</p>
+        `,
+    };
+
+    await transporter.sendMail(mailOptions);
+};
+
+// Function to send a notification email to all other users
+const sendNewMemberNotificationEmail = async (newMemberName) => {
+    // Query to get all users from the database except the new member
+    const query = 'SELECT email, name FROM members WHERE email != ?';
+    db.query(query, [newMemberEmail], async (err, result) => {
+        if (err) {
+            console.error("Error fetching users:", err);
+            return;
+        }
+
+        // Send email to all other users
+        for (const user of result) {
+            const mailOptions = {
+                from: "Chamapay 🏠 onesmuswambua747@gmail.com",
+                to: user.email,
+                subject: `🎉 New Member Joined Chamapay!`,
+                html: `
+                    <h2 style="color: #4CAF50;">Exciting News: New Member Joined Chamapay!</h2>
+                    <p>We are excited to announce that <strong>${newMemberName}</strong> has joined Chamapay!</p>
+                    <p>Let’s all welcome them to the community. Together, we’ll continue to build a better platform for rental property management and payments.</p>
+                    <p>Stay tuned for more updates!</p>
+                    <p style="margin-top: 20px;">Warm regards,<br />The Chamapay Team 💚</p>
+                `,
+            };
+
+            await transporter.sendMail(mailOptions);
+        }
+    });
+};
+
 router.post('/register', async (req, res) => {
     console.log("Incoming request body:", req.body);
     const { name, email, phone, password, role = "member" } = req.body;
@@ -57,7 +150,7 @@ router.post('/register', async (req, res) => {
             const hashedPassword = await bcrypt.hash(password, 10);
             const insertQuery = `INSERT INTO members (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)`;
 
-            db.query(insertQuery, [name, email, phone, hashedPassword, role], (err, result) => {
+            db.query(insertQuery, [name, email, phone, hashedPassword, role], async (err, result) => {
                 if (err) {
                     console.error("Insert error:", err);
                     return res.status(500).json({ error: err.message });
@@ -70,6 +163,20 @@ router.post('/register', async (req, res) => {
                     { expiresIn: '1d' }
                 );
 
+                // ✅ Send welcome email to the new member
+                try {
+                    await sendWelcomeEmail(email, name);
+                } catch (emailErr) {
+                    console.error("Email sending failed:", emailErr.message);
+                }
+
+                // ✅ Send notification email to all other users
+                try {
+                    await sendNewMemberNotificationEmail(name);
+                } catch (notificationErr) {
+                    console.error("Notification email sending failed:", notificationErr.message);
+                }
+
                 // ✅ Set token in cookie
                 res.cookie('authToken', token, {
                     httpOnly: true,
@@ -78,7 +185,7 @@ router.post('/register', async (req, res) => {
                     maxAge: 24 * 60 * 60 * 1000,
                 });
 
-                // ✅ Set token in response headers (for localStorage use)
+                // ✅ Set token in response headers
                 res.setHeader('Authorization', `Bearer ${token}`);
 
                 return res.status(201).json({
@@ -93,6 +200,7 @@ router.post('/register', async (req, res) => {
         res.status(500).json({ error: 'Error hashing password' });
     }
 });
+
 
 // LOGIN MEMBER
 router.post('/login', async (req, res) => {
@@ -129,15 +237,16 @@ router.post('/login', async (req, res) => {
                 role: member.role,
             };
 
-            const token = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: '1d' });
+            const token = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: '7d' });
 
             // ✅ Set token in cookie
             res.cookie('authToken', token, {
-                httpOnly: true,
-                secure: false,
-                sameSite: 'lax',
-                maxAge: 24 * 60 * 60 * 1000,
+                httpOnly: true,       // prevents JavaScript access (XSS protection)
+                secure: true,         // only sent over HTTPS
+                sameSite: 'Strict',   // prevents CSRF from other sites (use 'Lax' if you need cross-site)
+                maxAge: 24 * 60 * 60 * 1000, // 1 day
             });
+            
 
             // ✅ Set token in header (for localStorage)
             res.setHeader('Authorization', `Bearer ${token}`);
@@ -163,6 +272,38 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// RESET PASSWORD
+router.post("/forgot/reset-password", (req, res) => {
+    const { email } = req.body;
+  
+    db.query("SELECT * FROM members WHERE email = ?", [email], async (err, result) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.status(500).json({ msg: "Server error", error: err.message });
+      }
+  
+      if (result.length === 0) {
+        return res.status(400).json({ msg: "User not found" });
+      }
+  
+      const user = result[0];
+      const resetToken = jwt.sign({ id: user.id }, process.env.SECRET_KEY, {
+        expiresIn: "10m",
+      });
+  
+      const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+      const message = `Reset your password using this link: ${resetUrl}`;
+  
+      try {
+        await sendEmail(email, "Reset Your Password", message);
+        res.status(200).json({ message: "Reset link sent to email" });
+      } catch (emailErr) {
+        console.error("Email sending error:", emailErr);
+        res.status(500).json({ msg: "Failed to send email", error: emailErr.message });
+      }
+    });
+  });
+  
 
 //single member
 router.get('/saved/save/saving', authorize(['member','admin']), (req, res) => {

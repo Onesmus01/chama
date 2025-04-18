@@ -79,7 +79,7 @@ const Savings = () => {
 
   return (
     <div className="max-w-6xl mx-auto my-16 px-8 py-10 bg-white shadow-xl rounded-3xl border border-blue-200 transition-all duration-300">
-      <h2 className="text-4xl font-extrabold text-center text-blue-900 mb-4 font-serif">
+      <h2 className="text-4xl font-extrabold text-center mb-6 text-transparent bg-clip-text bg-gradient-to-r from-sky-500 via-indigo-600 to-blue-900 drop-shadow-xl tracking-tight font-[Inter]">
         <FaMoneyBillWave className="inline mr-2 text-green-600" />
         Hello {name}, Here’s Your Savings Summary
       </h2>
@@ -92,7 +92,7 @@ const Savings = () => {
         <h3 className="text-2xl font-bold text-blue-800 mb-4 font-serif">
           <FaUserAlt className="inline mr-2 text-blue-600" /> Member Information
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-lg text-gray-700 font-medium">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-lg text-gray-700 font-medium">
           <p><FaUserAlt className="inline mr-2 text-blue-500" /> Name: <span className="font-semibold">{name}</span></p>
           <p><FaEnvelope className="inline mr-2 text-blue-500" /> Email: <span className="font-semibold">{email}</span></p>
           <p><FaPhone className="inline mr-2 text-blue-500" /> Phone: <span className="font-semibold">{phone}</span></p>
@@ -106,7 +106,7 @@ const Savings = () => {
         </div>
       )}
 
-      <div ref={componentRef} className="overflow-x-auto">
+      <div ref={componentRef} className="overflow-x-auto mb-12">
         <table className="w-full text-left table-auto rounded-xl shadow-lg bg-white border border-gray-200">
           <thead>
             <tr className="bg-blue-800 text-white text-lg">
