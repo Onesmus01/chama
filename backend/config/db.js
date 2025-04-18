@@ -89,7 +89,6 @@ db.query(paymentsTable, (err, result) => {
     console.log('✅ Payments table ready');
 });
 
-
 const membersTable = `
 CREATE TABLE IF NOT EXISTS members (
     id INT AUTO_INCREMENT PRIMARY KEY,      -- Unique member ID
@@ -102,7 +101,9 @@ CREATE TABLE IF NOT EXISTS members (
     date DATE,                              -- Date of transaction or payment
     payment_status ENUM('pending', 'completed', 'failed') DEFAULT 'pending', -- Payment status
     amount DECIMAL(10, 2) DEFAULT 0.00,     -- Payment amount (KES)
-    payment_amount_status ENUM('balance', 'bonus') DEFAULT NULL -- Additional column for status based on the amount
+    payment_amount_status ENUM('balance', 'bonus') DEFAULT NULL, -- Additional column for status based on the amount
+    reset_token VARCHAR(255),               -- Token for password reset
+    reset_token_expires DATETIME            -- Expiry timestamp for reset token
 )
 `;
 
@@ -110,6 +111,7 @@ db.query(membersTable, (err, result) => {
     if (err) throw err;
     console.log('✅ Members table ready');
 });
+
 
 
 

@@ -12,6 +12,11 @@ import Pricing from './components/Pricing.jsx';
 import Pay from './pages/Pay.jsx';
 import Transaction from './pages/Transaction.jsx';
 import Savings from './pages/Savings.jsx';
+import FAQS from './components/FAQS.jsx'
+import ContactSupport from './components/ContactSupport.jsx'
+import PrivacyPolicy from './components/PrivacyPolicy.jsx';
+import TermsOfService from './components/TermsOfService.jsx'
+
 
 // Admin Pages
 import Dashboard from './admin/Dashboard.jsx';
@@ -19,7 +24,6 @@ import Members from './admin/Members.jsx';
 import Payments from './admin/Payments.jsx';
 import Edit from './admin/Edit.jsx';
 
-// ✅ ProtectedRoute Component (Safe & Multi-role)
 const ProtectedRoute = ({ element, role }) => {
   const token =
     Cookies.get('token') ||
@@ -35,6 +39,13 @@ const ProtectedRoute = ({ element, role }) => {
   try {
     const decoded = jwtDecode(token);
 
+    // Check if the token is expired
+    const currentTime = Date.now() / 1000; // Get current time in seconds
+    if (decoded.exp < currentTime) {
+      console.warn('⛔ Token expired');
+      return <Navigate to="/login" replace />;
+    }
+
     // Role-based access control
     if (role) {
       const allowed = Array.isArray(role)
@@ -43,7 +54,7 @@ const ProtectedRoute = ({ element, role }) => {
 
       if (!allowed) {
         console.warn('🚫 Unauthorized access: Role mismatch');
-        return <Navigate to="/" replace />;
+        return <Navigate to="/unauthorized" replace />;  // Redirecting to an Unauthorized page
       }
     }
 
@@ -56,7 +67,7 @@ const ProtectedRoute = ({ element, role }) => {
 
 const App = () => {
   return (
-    <div>
+    <div className='bg-gray-200'>
       <Navbar />
       <Routes>
         {/* Public Routes */}
@@ -65,6 +76,16 @@ const App = () => {
         <Route path="/learn" element={<LearnMore />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/pricing" element={<Pricing />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/faq" element={<FAQS />} />
+        <Route path="/contact-support" element={<ContactSupport />} />
+        <Route path="/terms-of-service" element={<TermsOfService />} />
+
+
+
+        
+
+
 
         {/* Shared Protected Route (member or admin) */}
         <Route
@@ -79,8 +100,11 @@ const App = () => {
         <Route path="/edit" element={<ProtectedRoute element={<Edit />} role="admin" />} />
 
         {/* Member/User Protected Routes */}
-        <Route path="/transactions" element={<ProtectedRoute element={<Transaction />} role="member" />} />
-        <Route path="/savings" element={<ProtectedRoute element={<Savings />} role="member" />} />
+        <Route path="/transactions" element={<ProtectedRoute element={<Transaction />} role={["member","admin"]} />} />
+        <Route path="/savings" element={<ProtectedRoute element={<Savings />} role={["member","admin"]} />} />
+
+        {/* Unauthorized Route */}
+        <Route path="/unauthorized" element={<h2>Unauthorized Access</h2>} />
       </Routes>
       <Footer />
     </div>
