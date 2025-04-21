@@ -71,51 +71,57 @@ db.connect((err) => {
     // 🔹 Create Payments Table (For payment tracking)
     const paymentsTable = `
     CREATE TABLE IF NOT EXISTS payments (
-        id INT AUTO_INCREMENT PRIMARY KEY,          -- Payment ID
-        member_id INT NOT NULL,                     -- Foreign key linking to members table
-        amount DECIMAL(10,2) NOT NULL,              -- Amount paid
-        phone VARCHAR(20) NOT NULL,                 -- Payer's phone number
-        status ENUM('pending', 'completed', 'failed','status') NOT NULL DEFAULT 'pending', -- Payment status
-        date_paid TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Date of payment
-        transaction VARCHAR(255) UNIQUE NOT NULL,   -- Unique transaction ID
-        FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE -- Foreign key to members table
-    )
-`;
-db.query(paymentsTable, (err, result) => {
-    if (err) {
-        console.error("Error creating payments table:", err);
-        return; // Exits early on error
-    }
-    console.log('✅ Payments table ready');
-});
+        id INT AUTO_INCREMENT PRIMARY KEY,                              -- Payment ID
+        member_id INT NOT NULL,                                         -- Foreign key to members table
+        amount DECIMAL(10,2) NOT NULL,                                  -- Amount paid
+        phone VARCHAR(20) NOT NULL,                                     -- Payer's phone number
+        status ENUM('pending', 'completed', 'failed') NOT NULL DEFAULT 'pending', -- Payment status
+        date_paid TIMESTAMP DEFAULT CURRENT_TIMESTAMP,                  -- Timestamp when payment is made
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP, -- Timestamp for updates
+        transaction VARCHAR(64) UNIQUE NOT NULL,                        -- Unique transaction reference
+        FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE, -- FK with cascade delete
+        INDEX idx_member_id (member_id),                                -- Speeds up lookup by member
+        INDEX idx_status (status)                                       -- Speeds up status filtering
+    );
+    
+    -- Optional: MySQL 8.0+ only — prevent multiple pending payments per user
+    -- CREATE UNIQUE INDEX unique_pending ON payments(member_id) WHERE status = 'pending';
+    `;
+    
+    db.query(paymentsTable, (err, result) => {
+        if (err) {
+            console.error("❌ Error creating payments table:", err);
+            return;
+        }
+        console.log("✅ Payments table ready");
+    });
+    
 
-const membersTable = `
-CREATE TABLE IF NOT EXISTS members (
-    id INT AUTO_INCREMENT PRIMARY KEY,      -- Unique member ID
-    name VARCHAR(255) NOT NULL,             -- Member's full name
-    email VARCHAR(255) UNIQUE NOT NULL,     -- Member's email (should be unique)
-    phone VARCHAR(20) UNIQUE NOT NULL,      -- Member's phone (unique)
-    password VARCHAR(255) NOT NULL,         -- Hashed password
-    role ENUM('admin', 'member') NOT NULL DEFAULT 'member', -- Role (admin or member)
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp of account creation
-    date DATE,                              -- Date of transaction or payment
-    payment_status ENUM('pending', 'completed', 'failed') DEFAULT 'pending', -- Payment status
-    amount DECIMAL(10, 2) DEFAULT 0.00,     -- Payment amount (KES)
-    payment_amount_status ENUM('balance', 'bonus') DEFAULT NULL, -- Additional column for status based on the amount
-    reset_token VARCHAR(255),               -- Token for password reset
-    reset_token_expires DATETIME            -- Expiry timestamp for reset token
-)
+    const membersTable = `
+    CREATE TABLE IF NOT EXISTS members (
+        id INT AUTO_INCREMENT PRIMARY KEY,      -- Unique member ID
+        name VARCHAR(255) NOT NULL,             -- Member's full name
+        email VARCHAR(255) UNIQUE NOT NULL,     -- Member's email (should be unique)
+        phone VARCHAR(20) UNIQUE NOT NULL,      -- Member's phone (unique)
+        password VARCHAR(255) NOT NULL,         -- Hashed password
+        role ENUM('admin', 'member') NOT NULL DEFAULT 'member', -- Role (admin or member)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp of account creation
+        date DATE,                              -- Date of transaction/payment (optional)
+        payment_status ENUM('pending', 'completed', 'failed') DEFAULT 'pending', -- Payment status
+        amount DECIMAL(10, 2) DEFAULT 0.00,     -- Payment amount (KES)
+        payment_amount_status ENUM('balance', 'bonus') DEFAULT NULL, -- Amount type/status
+        total_paid DECIMAL(10, 2) DEFAULT 0.00, -- Total amount paid by the member
+        balance DECIMAL(10, 2) DEFAULT 50000.00, -- Remaining amount to be paid
+        extra_paid DECIMAL(10, 2) DEFAULT 0.00,  -- Extra amount paid above the required total
+        reset_token VARCHAR(255) DEFAULT NULL,  -- Token for password reset
+        reset_token_expires DATETIME DEFAULT NULL -- Expiry timestamp for reset token
+    );
 `;
-
 db.query(membersTable, (err, result) => {
     if (err) throw err;
     console.log('✅ Members table ready');
 });
 
-
-
-
-
-});
+})
 
 export default db;

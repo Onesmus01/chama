@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { FaMobileAlt, FaMoneyBillWave } from "react-icons/fa";  // Importing FontAwesome icons
 
 const Pay = () => {
   const [phone, setPhone] = useState("");
@@ -92,7 +93,10 @@ const Pay = () => {
 
   return (
     <div className="max-w-md mx-auto mt-12 bg-white shadow-xl rounded-lg p-8">
-      <h2 className="text-2xl font-bold text-center text-blue-900 mb-6">Make a Payment</h2>
+      <h2 className="text-3xl font-bold text-center text-green-600 mb-6">
+        <FaMoneyBillWave className="inline-block mr-2 text-4xl" />
+        Make a Payment
+      </h2>
 
       {message && (
         <div
@@ -122,7 +126,7 @@ const Pay = () => {
               value={phone}
               onChange={(e) => {
                 const val = e.target.value;
-                if (/^\d{0,9}$/.test(val)) {
+                if (/^\d{0,9}$/.test(val) && val.startsWith("7")) {
                   setPhone(val);
                 }
               }}
@@ -146,10 +150,15 @@ const Pay = () => {
 
         <button
           type="submit"
-          className="w-full bg-blue-800 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
           disabled={loading}
         >
-          {loading ? "Sending..." : "Pay with M-Pesa"}
+          {loading ? "Sending..." : (
+            <>
+              <FaMobileAlt className="inline-block mr-2" />
+              Pay with M-Pesa
+            </>
+          )}
         </button>
       </form>
     </div>

@@ -3,13 +3,22 @@ import { useParams } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
 import axios from "axios";
 import {
-  FaUserAlt, FaEnvelope, FaPhone, FaCalendarAlt, FaMoneyBillWave,
-  FaFileInvoiceDollar, FaFileDownload, FaInfoCircle
+  FaUserAlt,
+  FaEnvelope,
+  FaPhone,
+  FaCalendarAlt,
+  FaMoneyBillWave,
+  FaFileInvoiceDollar,
+  FaFileDownload,
+  FaInfoCircle,
 } from "react-icons/fa";
 
 const Savings = () => {
   const [savings, setSavings] = useState([]);
   const [totalSavings, setTotalSavings] = useState(0);
+  const [expectedAmount, setExpectedAmount] = useState(0);
+  const [extraPaid, setExtraPaid] = useState(0);
+  const [balance, setBalance] = useState(0);
   const [name, setName] = useState("User");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -43,17 +52,46 @@ const Savings = () => {
           }
         );
 
-        const { name, email, phone, member_since, savings, message } = response.data;
+        const {
+          name,
+          email,
+          phone,
+          member_since,
+          total_paid,
+          expected_amount,
+          message,
+          savings_data,
+        } = response.data;
 
         setName(name || "User");
         setEmail(email || "No email provided");
         setPhone(phone || "No phone provided");
         setMemberSince(member_since ? new Date(member_since).toLocaleDateString() : "N/A");
-        setSavings(savings || []);
-        setMessage(message || "You have not yet contributed.");
 
-        const total = (savings || []).reduce((acc, entry) => acc + (entry.amount || 0), 0);
+        const total = Array.isArray(total_paid)
+          ? total_paid.reduce((acc, entry) => acc + (entry.amount || 0), 0)
+          : total_paid || 0;
+
         setTotalSavings(total);
+        setSavings(savings_data || []);
+
+        const expected = expected_amount || 0;
+        setExpectedAmount(expected);
+
+        const difference = total - expected;
+        if (difference > 0) {
+          setExtraPaid(difference);
+          setBalance(0);
+        } else {
+          setBalance(Math.abs(difference));
+          setExtraPaid(0);
+        }
+
+        if (total === 0 || !total) {
+          setMessage("You have not contributed yet.");
+        } else {
+          setMessage(message || "Thank you for your contribution.");
+        }
       } catch (error) {
         console.error("Error fetching savings:", error);
         setMessage("Failed to fetch savings data.");
@@ -84,9 +122,25 @@ const Savings = () => {
         Hello {name}, Here’s Your Savings Summary
       </h2>
 
-      <p className="text-xl text-center text-green-700 font-semibold mb-10">
+      <p className="text-xl text-center text-green-700 font-semibold mb-4">
         💰 Total Savings: <span className="font-bold text-green-900">${totalSavings.toFixed(2)}</span>
       </p>
+
+      <p className="text-center text-lg mb-2 text-blue-700">
+        🎯 Expected Contribution: <span className="font-semibold">${expectedAmount.toFixed(2)}</span>
+      </p>
+
+      {extraPaid > 0 && (
+        <p className="text-center text-green-600 font-semibold text-lg mb-2">
+          ✅ Extra Paid: ${extraPaid.toFixed(2)} — Great job!
+        </p>
+      )}
+
+      {balance > 0 && (
+        <p className="text-center text-red-600 font-semibold text-lg mb-2">
+          ⚠️ Balance Remaining: ${balance.toFixed(2)} — Please complete your contribution.
+        </p>
+      )}
 
       <div className="mb-12 bg-gradient-to-br from-blue-50 to-white rounded-2xl p-6 shadow-inner border border-blue-100">
         <h3 className="text-2xl font-bold text-blue-800 mb-4 font-serif">
@@ -116,7 +170,7 @@ const Savings = () => {
             </tr>
           </thead>
           <tbody>
-            {savings.length > 0 ? (
+            {Array.isArray(savings) && savings.length > 0 ? (
               savings.map((entry, index) => (
                 <tr
                   key={index}
