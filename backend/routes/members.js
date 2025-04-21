@@ -160,7 +160,7 @@ router.post('/register', async (req, res) => {
                 const token = jwt.sign(
                     { id: newMemberId, email, role },
                     process.env.SECRET_KEY,
-                    { expiresIn: '1d' }
+                    { expiresIn: '7d' }
                 );
 
                 // ✅ Send welcome email to the new member
@@ -306,10 +306,10 @@ router.post("/forgot/reset-password", (req, res) => {
   
 
 //single member
-router.get('/saved/save/saving', authorize(['member','admin']), (req, res) => {
+router.get('/saved/save/saving', authorize(['member', 'admin']), (req, res) => {
     console.log("🔍 Member object:", req.member);
 
-    const memberId = req.member?.id;  // Use optional chaining to avoid errors
+    const memberId = req.member?.id;
 
     if (!memberId) {
         return res.status(401).json({ message: "Unauthorized. No member ID found." });
@@ -321,6 +321,7 @@ router.get('/saved/save/saving', authorize(['member','admin']), (req, res) => {
             m.name,
             m.email,
             m.phone,
+            m.total_paid,
             m.created_at AS member_since,
             c.id AS contribution_id,
             c.amount,
@@ -343,6 +344,7 @@ router.get('/saved/save/saving', authorize(['member','admin']), (req, res) => {
             name: results[0].name,
             email: results[0].email,
             phone: results[0].phone,
+            total_paid: results[0].total_paid, // ✅ Add this line
             member_since: results[0].member_since,
         };
 
@@ -355,7 +357,8 @@ router.get('/saved/save/saving', authorize(['member','admin']), (req, res) => {
                 payment_date: entry.payment_date,
             }));
 
-        if (savings.length === 0) {
+        // Check if total_paid is 0 and return the message accordingly
+        if (results[0].total_paid === 0) {
             return res.status(200).json({
                 ...memberInfo,
                 savings: [],
@@ -363,9 +366,11 @@ router.get('/saved/save/saving', authorize(['member','admin']), (req, res) => {
             });
         }
 
+        // If savings exist, send the response
         res.json({ ...memberInfo, savings });
     });
 });
+
 
 router.get("/transact/transactions", authorize(['member','admin']), (req, res) => {
     const memberId = req.member?.id;  // Using req.member.id

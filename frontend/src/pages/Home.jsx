@@ -6,6 +6,7 @@ import Testimonials from '../components/Testimonials.jsx'
 import Pricing from '../components/Pricing.jsx'
 import Stats from '../components/Stats.jsx'
 import CTASection from '../components/Cta.jsx'
+import  UnauthorizedAccess from '../pages/UnauthorizedAccess.jsx'
 
 const Home = () => {
   return (

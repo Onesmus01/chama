@@ -16,6 +16,7 @@ import FAQS from './components/FAQS.jsx'
 import ContactSupport from './components/ContactSupport.jsx'
 import PrivacyPolicy from './components/PrivacyPolicy.jsx';
 import TermsOfService from './components/TermsOfService.jsx'
+import UnauthorizedAccess from './pages/UnauthorizedAccess.jsx'
 
 
 // Admin Pages
@@ -104,7 +105,7 @@ const App = () => {
         <Route path="/savings" element={<ProtectedRoute element={<Savings />} role={["member","admin"]} />} />
 
         {/* Unauthorized Route */}
-        <Route path="/unauthorized" element={<h2>Unauthorized Access</h2>} />
+        <Route path="/unauthorized" element={<UnauthorizedAccess />} />
       </Routes>
       <Footer />
     </div>
