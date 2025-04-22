@@ -91,7 +91,7 @@ const Edit = () => {
     if (window.confirm("Are you sure you want to delete this member?")) {
       try {
         const { status } = await axios.delete(
-          `http://localhost:6500/api/members/${id}/delete`,
+          `http://localhost:6500/api/members/${id}/delete`, 
           { withCredentials: true }
         );
 

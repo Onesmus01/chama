@@ -10,6 +10,14 @@ const db = mysql.createPool({
   database: 'bb1h0utzxslm4l1scu03',  // Ensure the database is correctly set here
 });
 
+// const db = mysql.createPool({
+//   connectionLimit: 10,
+//   host: 'localhost',
+//   user: 'root',
+//   password: '',
+//   database: 'chama_db',  // Ensure the database is correctly set here
+// });
+
 // 🔹 Create Members Table
 const membersTable = `
 CREATE TABLE IF NOT EXISTS members (

@@ -244,7 +244,8 @@ router.post('/login', async (req, res) => {
                 httpOnly: true,       // prevents JavaScript access (XSS protection)
                 secure: true,         // only sent over HTTPS
                 sameSite: 'Strict',   // prevents CSRF from other sites (use 'Lax' if you need cross-site)
-                maxAge: 24 * 60 * 60 * 1000, // 1 day
+                maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+
             });
             
 
