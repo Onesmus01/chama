@@ -11,8 +11,7 @@ const Pay = () => {
   const [transactionId, setTransactionId] = useState("");
   const [intervalId, setIntervalId] = useState(null); // for polling
 
-  const webhookUrl = "https://chama-8.onrender.com/api/payment/mpesa/webhook"
-  ;  // Your webhook URL
+  const webhookUrl = "https://chama-8.onrender.com/api/payment/mpesa/webhook";  // Your webhook URL
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -95,13 +95,10 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
 });
 
 // ======= M-PESA CALLBACK =======
-paymentRouter.post('/mpesa/webhook', express.text({ type: '*/*' }), (req, res) => {
-  let data;
-  try {
-    data = JSON.parse(req.body);
-  } catch {
-    return res.status(400).json({ message: 'Invalid JSON' });
-  }
+paymentRouter.post('/mpesa/webhook', express.json(), (req, res) => {
+  const data = req.body;
+
+  console.log('[MPESA CALLBACK RECEIVED]', JSON.stringify(data, null, 2));
 
   const stkCallback = data?.Body?.stkCallback;
   if (!stkCallback) return res.status(400).json({ message: 'Invalid callback payload.' });
@@ -120,7 +117,7 @@ paymentRouter.post('/mpesa/webhook', express.text({ type: '*/*' }), (req, res) =
 
       if (status === 'success') {
         db.query(
-          `SELECT member_id, amount FROM payments WHERE transaction = ?`,
+          'SELECT member_id, amount FROM payments WHERE transaction = ?',
           [transactionId],
           (err, results) => {
             if (err || !results.length) return;
@@ -154,6 +151,7 @@ paymentRouter.post('/mpesa/webhook', express.text({ type: '*/*' }), (req, res) =
     }
   );
 });
+
 
 // ======= PAYMENT STATUS CHECK =======
 paymentRouter.get('/mpesa/status/:transactionId', (req, res) => {

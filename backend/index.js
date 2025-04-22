@@ -20,7 +20,7 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(
   cors({
-    origin: "http://localhost:4173", 
+    origin: ["http://localhost:4173", 'https://chama-7.onrender.com',"http://192.168.126.1:4173/"],
     methods: "GET,POST,PUT,DELETE",
     allowedHeaders: "Content-Type, Authorization",
     credentials: true
