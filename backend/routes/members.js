@@ -2,7 +2,7 @@ import express from 'express';
 import mysql from 'mysql';
 import db from '../config/db.js';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
+import bcryptjs from 'bcryptjs';
 import dotenv from 'dotenv';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
@@ -147,7 +147,7 @@ router.post('/register', async (req, res) => {
                 });
             }
 
-            const hashedPassword = await bcrypt.hash(password, 10);
+            const hashedPassword = await bcryptjs.hash(password, 10);
             const insertQuery = `INSERT INTO members (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)`;
 
             db.query(insertQuery, [name, email, phone, hashedPassword, role], async (err, result) => {
@@ -225,7 +225,7 @@ router.post('/login', async (req, res) => {
             }
 
             const member = results[0];
-            const isMatch = await bcrypt.compare(password, member.password);
+            const isMatch = await bcryptjs.compare(password, member.password);
 
             if (!isMatch) {
                 return res.status(401).json({ success: false, msg: 'Invalid email or password' });
