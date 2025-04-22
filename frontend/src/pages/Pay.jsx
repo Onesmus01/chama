@@ -11,6 +11,9 @@ const Pay = () => {
   const [transactionId, setTransactionId] = useState("");
   const [intervalId, setIntervalId] = useState(null); // for polling
 
+  const webhookUrl = "https://chama-8.onrender.com/api/payment/mpesa/webhook"
+  ;  // Your webhook URL
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage(null);
@@ -69,6 +72,9 @@ const Pay = () => {
         setMessage(statusMessage || `Payment ${paymentStatus}`);
         setStatus(paymentStatus);
 
+        // Notify the backend via the webhook
+        await notifyWebhook(txnId, paymentStatus);
+
         // Stop polling
         if (intervalId) {
           clearInterval(intervalId);
@@ -79,6 +85,18 @@ const Pay = () => {
       }
     } catch (error) {
       console.error("Error checking status:", error);
+    }
+  };
+
+  const notifyWebhook = async (txnId, paymentStatus) => {
+    try {
+      const response = await axios.post(webhookUrl, {
+        transactionId: txnId,
+        status: paymentStatus,
+      });
+      console.log("Webhook notification sent:", response.data);
+    } catch (error) {
+      console.error("Error sending webhook notification:", error);
     }
   };
 
