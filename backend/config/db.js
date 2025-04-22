@@ -2,10 +2,10 @@ import mysql from 'mysql';
 
 // Create MySQL connection
 const db = mysql.createConnection({
-    host: 'localhost',   // Change if using remote database
-    user: 'root',        // Your MySQL username
-    password: '',        // Your MySQL password
-    database: 'chama_db' // Database name
+    host: 'bb1h0utzxslm4l1scu03-mysql.services.clever-cloud.com',   // Change if using remote database
+    user: 'udxiddataalggym0',        // Your MySQL username
+    password: 't0d2iZavphmLmOPxv5w7',        // Your MySQL password
+    database: 'bb1h0utzxslm4l1scu03' // Database name
 });
 
 // Connect to MySQL
@@ -17,18 +17,42 @@ db.connect((err) => {
     console.log('✅ Connected to MySQL');
 
     // Create database if it does not exist
-    db.query(`CREATE DATABASE IF NOT EXISTS chama_db`, (err, result) => {
+    db.query(`CREATE DATABASE IF NOT EXISTS bb1h0utzxslm4l1scu03`, (err, result) => {
         if (err) throw err;
         console.log('✅ Database chama_db ready');
     });
 
     // Use the database
-    db.query(`USE chama_db`, (err, result) => {
+    db.query(`USE bb1h0utzxslm4l1scu03`, (err, result) => {
         if (err) throw err;
     });
 
     // 🔹 Create Members Table (Includes Role and Password for Authentication)
     ;
+    const membersTable = `
+    CREATE TABLE IF NOT EXISTS members (
+        id INT AUTO_INCREMENT PRIMARY KEY,      -- Unique member ID
+        name VARCHAR(255) NOT NULL,             -- Member's full name
+        email VARCHAR(255) UNIQUE NOT NULL,     -- Member's email (should be unique)
+        phone VARCHAR(20) UNIQUE NOT NULL,      -- Member's phone (unique)
+        password VARCHAR(255) NOT NULL,         -- Hashed password
+        role ENUM('admin', 'member') NOT NULL DEFAULT 'member', -- Role (admin or member)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp of account creation
+        date DATE,                              -- Date of transaction/payment (optional)
+        payment_status ENUM('pending', 'completed', 'failed') DEFAULT 'pending', -- Payment status
+        amount DECIMAL(10, 2) DEFAULT 0.00,     -- Payment amount (KES)
+        payment_amount_status ENUM('balance', 'bonus') DEFAULT NULL, -- Amount type/status
+        total_paid DECIMAL(10, 2) DEFAULT 0.00, -- Total amount paid by the member
+        balance DECIMAL(10, 2) DEFAULT 50000.00, -- Remaining amount to be paid
+        extra_paid DECIMAL(10, 2) DEFAULT 0.00,  -- Extra amount paid above the required total
+        reset_token VARCHAR(255) DEFAULT NULL,  -- Token for password reset
+        reset_token_expires DATETIME DEFAULT NULL -- Expiry timestamp for reset token
+    );
+`;
+db.query(membersTable, (err, result) => {
+    if (err) throw err;
+    console.log('✅ Members table ready');
+});
 
     // 🔹 Create Contributions Table (Tracks Payments)
     const contributionsTable = `
@@ -97,30 +121,7 @@ db.connect((err) => {
     });
     
 
-    const membersTable = `
-    CREATE TABLE IF NOT EXISTS members (
-        id INT AUTO_INCREMENT PRIMARY KEY,      -- Unique member ID
-        name VARCHAR(255) NOT NULL,             -- Member's full name
-        email VARCHAR(255) UNIQUE NOT NULL,     -- Member's email (should be unique)
-        phone VARCHAR(20) UNIQUE NOT NULL,      -- Member's phone (unique)
-        password VARCHAR(255) NOT NULL,         -- Hashed password
-        role ENUM('admin', 'member') NOT NULL DEFAULT 'member', -- Role (admin or member)
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp of account creation
-        date DATE,                              -- Date of transaction/payment (optional)
-        payment_status ENUM('pending', 'completed', 'failed') DEFAULT 'pending', -- Payment status
-        amount DECIMAL(10, 2) DEFAULT 0.00,     -- Payment amount (KES)
-        payment_amount_status ENUM('balance', 'bonus') DEFAULT NULL, -- Amount type/status
-        total_paid DECIMAL(10, 2) DEFAULT 0.00, -- Total amount paid by the member
-        balance DECIMAL(10, 2) DEFAULT 50000.00, -- Remaining amount to be paid
-        extra_paid DECIMAL(10, 2) DEFAULT 0.00,  -- Extra amount paid above the required total
-        reset_token VARCHAR(255) DEFAULT NULL,  -- Token for password reset
-        reset_token_expires DATETIME DEFAULT NULL -- Expiry timestamp for reset token
-    );
-`;
-db.query(membersTable, (err, result) => {
-    if (err) throw err;
-    console.log('✅ Members table ready');
-});
+
 
 })
 
