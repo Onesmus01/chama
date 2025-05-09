@@ -2,21 +2,21 @@ import mysql from 'mysql';
 
 // Create MySQL connection
 
+// const db = mysql.createPool({
+//   connectionLimit: 20,
+//   host: 'bb1h0utzxslm4l1scu03-mysql.services.clever-cloud.com',
+//   user: 'udxiddataalggym0',
+//   password: 't0d2iZavphmLmOPxv5w7',
+//   database: 'bb1h0utzxslm4l1scu03',  // Ensure the database is correctly set here
+// });
+
 const db = mysql.createPool({
   connectionLimit: 10,
-  host: 'bb1h0utzxslm4l1scu03-mysql.services.clever-cloud.com',
-  user: 'udxiddataalggym0',
-  password: 't0d2iZavphmLmOPxv5w7',
-  database: 'bb1h0utzxslm4l1scu03',  // Ensure the database is correctly set here
+  host: 'localhost',
+  user: 'root',
+  password: '',
+  database: 'chama_db',  // Ensure the database is correctly set here
 });
-
-// const db = mysql.createPool({
-//   connectionLimit: 10,
-//   host: 'localhost',
-//   user: 'root',
-//   password: '',
-//   database: 'chama_db',  // Ensure the database is correctly set here
-// });
 
 // 🔹 Create Members Table
 const membersTable = `

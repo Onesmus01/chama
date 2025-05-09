@@ -45,7 +45,7 @@ const Dashboard = () => {
                         <FaMoneyBillWave size={30} />
                         <div>
                             <h2 className="text-lg font-semibold">Total Payments</h2>
-                            <p className="text-2xl font-bold">KES 500,000</p>
+                            <p className="text-2xl font-bold">KES 500,000</p>c
                         </div>
                     </div>
                     <div className="p-6 bg-red-400 text-white rounded-lg shadow-md flex items-center gap-4">
