@@ -1,5 +1,5 @@
 import { FaShieldAlt, FaMoneyCheckAlt, FaClock, FaBolt, FaUsers, FaMobileAlt } from "react-icons/fa";
-import photo from "../assets/photo.jpg";
+import photo from "/images/photo.jpg";
 import {useNavigate} from 'react-router-dom'
 
 const Hero = () => {
