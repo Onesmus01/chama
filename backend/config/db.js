@@ -120,11 +120,17 @@ const { Pool } = pkg;
 import dotenv from "dotenv";
 dotenv.config();
 
-// 🔹 Setup Neon PostgreSQL connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // Neon connection string
-  ssl: { rejectUnauthorized: false }, // required for Neon SSL
-});
+// 🔹 Use a global pool for serverless environments (Vercel)
+let pool;
+
+if (!global.pool) {
+  global.pool = new Pool({
+    connectionString: process.env.DATABASE_URL, // Neon connection string
+    ssl: { rejectUnauthorized: false }, // required for Neon SSL
+  });
+}
+
+pool = global.pool;
 
 // 🔹 Table definitions
 const membersTable = `
@@ -186,7 +192,7 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 `;
 
-// 🔹 Initialize DB
+// 🔹 Initialize DB (only once)
 async function initDB() {
   try {
     await pool.connect();
