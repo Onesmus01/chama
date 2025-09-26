@@ -38,6 +38,9 @@ const Savings = () => {
 
   const token = getToken();
 
+  // Helper function to safely format currency
+  const formatCurrency = (value) => Number(value || 0).toFixed(2);
+
   useEffect(() => {
     const fetchSavings = async () => {
       try {
@@ -68,14 +71,15 @@ const Savings = () => {
         setPhone(phone || "No phone provided");
         setMemberSince(member_since ? new Date(member_since).toLocaleDateString() : "N/A");
 
+        // Ensure totalPaid is a number
         const total = Array.isArray(total_paid)
-          ? total_paid.reduce((acc, entry) => acc + (entry.amount || 0), 0)
-          : total_paid || 0;
+          ? total_paid.reduce((acc, entry) => acc + Number(entry.amount || 0), 0)
+          : Number(total_paid) || 0;
 
         setTotalSavings(total);
         setSavings(savings_data || []);
 
-        const expected = expected_amount || 0;
+        const expected = Number(expected_amount) || 0;
         setExpectedAmount(expected);
 
         const difference = total - expected;
@@ -87,7 +91,7 @@ const Savings = () => {
           setExtraPaid(0);
         }
 
-        if (total === 0 || !total) {
+        if (total === 0) {
           setMessage("You have not contributed yet.");
         } else {
           setMessage(message || "Thank you for your contribution.");
@@ -123,22 +127,22 @@ const Savings = () => {
       </h2>
 
       <p className="text-xl text-center text-green-700 font-semibold mb-4">
-        💰 Total Savings: <span className="font-bold text-green-900">${totalSavings.toFixed(2)}</span>
+        💰 Total Savings: <span className="font-bold text-green-900">${formatCurrency(totalSavings)}</span>
       </p>
 
       <p className="text-center text-lg mb-2 text-blue-700">
-        🎯 Expected Contribution: <span className="font-semibold">${expectedAmount.toFixed(2)}</span>
+        🎯 Expected Contribution: <span className="font-semibold">${formatCurrency(expectedAmount)}</span>
       </p>
 
       {extraPaid > 0 && (
         <p className="text-center text-green-600 font-semibold text-lg mb-2">
-          ✅ Extra Paid: ${extraPaid.toFixed(2)} — Great job!
+          ✅ Extra Paid: ${formatCurrency(extraPaid)} — Great job!
         </p>
       )}
 
       {balance > 0 && (
         <p className="text-center text-red-600 font-semibold text-lg mb-2">
-          ⚠️ Balance Remaining: ${balance.toFixed(2)} — Please complete your contribution.
+          ⚠️ Balance Remaining: ${formatCurrency(balance)} — Please complete your contribution.
         </p>
       )}
 
@@ -182,7 +186,7 @@ const Savings = () => {
                       : "N/A"}
                   </td>
                   <td className="p-4 text-green-600 font-semibold">
-                    {entry.amount != null ? `$${entry.amount.toFixed(2)}` : "$0.00"}
+                    {entry.amount != null ? `$${formatCurrency(entry.amount)}` : "$0.00"}
                   </td>
                   <td className="p-4">{entry.payment_method || "N/A"}</td>
                 </tr>

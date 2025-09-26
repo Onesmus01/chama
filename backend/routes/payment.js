@@ -1,7 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import db from '../config/db.js';
+import  pool  from '../config/db.js'; // <-- Postgres pool
 import validator from 'validator';
 
 dotenv.config();
@@ -40,64 +40,55 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
     return res.status(400).json({ success: false, toast: true, message: 'Invalid phone number or amount.' });
   }
 
-  db.query('SELECT id FROM members WHERE phone = ?', [phone], async (err, results) => {
-    if (err) return res.status(500).json({ success: false, toast: true, message: 'Database error.' });
-    if (!results.length) return res.status(404).json({ success: false, toast: true, message: 'Member not found.' });
+  try {
+    const result = await pool.query('SELECT id FROM members WHERE phone = $1', [phone]);
+    if (!result.rows.length) return res.status(404).json({ success: false, toast: true, message: 'Member not found.' });
 
-    const memberId = results[0].id;
+    const memberId = result.rows[0].id;
+    const token = await getMpesaToken();
+    const timestamp = new Date().toISOString().replace(/[-T:]/g, '').slice(0, 14);
+    const password = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
 
-    try {
-      const token = await getMpesaToken();
-      const timestamp = new Date().toISOString().replace(/[-T:]/g, '').slice(0, 14);
-      const password = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
+    const { data } = await axios.post(
+      'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
+      {
+        BusinessShortCode: MPESA_SHORTCODE,
+        Password: password,
+        Timestamp: timestamp,
+        TransactionType: 'CustomerPayBillOnline',
+        Amount: amount,
+        PartyA: phone,
+        PartyB: MPESA_SHORTCODE,
+        PhoneNumber: phone,
+        CallBackURL: CALLBACK_URL,
+        AccountReference: 'Chama Payment',
+        TransactionDesc: 'Chama Membership Payment',
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      const { data } = await axios.post(
-        'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
-        {
-          BusinessShortCode: MPESA_SHORTCODE,
-          Password: password,
-          Timestamp: timestamp,
-          TransactionType: 'CustomerPayBillOnline',
-          Amount: amount,
-          PartyA: phone,
-          PartyB: MPESA_SHORTCODE,
-          PhoneNumber: phone,
-          CallBackURL: CALLBACK_URL,
-          AccountReference: 'Chama Payment',
-          TransactionDesc: 'Chama Membership Payment',
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+    const checkoutId = data.CheckoutRequestID;
 
-      const checkoutId = data.CheckoutRequestID;
+    await pool.query(
+      'INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid) VALUES ($1, $2, $3, $4, $5, NOW())',
+      [memberId, phone, amount, 'pending', checkoutId]
+    );
 
-      db.query(
-        'INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid) VALUES (?, ?, ?, ?, ?, NOW())',
-        [memberId, phone, amount, 'pending', checkoutId],
-        (err) => {
-          if (err) return res.status(500).json({ success: false, toast: true, message: 'Error saving payment.' });
-
-          res.status(200).json({
-            success: true,
-            toast: true,
-            message: 'Payment initiated. Enter your M-Pesa PIN.',
-            transaction_id: checkoutId,
-          });
-        }
-      );
-    } catch (error) {
-      console.error('[STK Push Error]', error.response?.data || error.message);
-      res.status(500).json({ success: false, toast: true, message: 'STK Push failed. Please try again.' });
-    }
-  });
+    res.status(200).json({
+      success: true,
+      toast: true,
+      message: 'Payment initiated. Enter your M-Pesa PIN.',
+      transaction_id: checkoutId,
+    });
+  } catch (error) {
+    console.error('[STK Push Error]', error.response?.data || error.message);
+    res.status(500).json({ success: false, toast: true, message: 'STK Push failed. Please try again.' });
+  }
 });
 
 // ======= M-PESA CALLBACK =======
-paymentRouter.post('/mpesa/webhook', express.json(), (req, res) => {
+paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
   const data = req.body;
-
   console.log('[MPESA CALLBACK RECEIVED]', JSON.stringify(data, null, 2));
 
   const stkCallback = data?.Body?.stkCallback;
@@ -107,105 +98,97 @@ paymentRouter.post('/mpesa/webhook', express.json(), (req, res) => {
   const resultCode = stkCallback.ResultCode;
   const status = resultCode === 0 ? 'success' : 'failed';
 
-  db.query(
-    'UPDATE payments SET status = ?, updated_at = NOW() WHERE transaction = ?',
-    [status, transactionId],
-    (err, result) => {
-      if (err || result.affectedRows === 0) {
-        return res.status(500).json({ message: 'Error updating payment status.' });
-      }
+  try {
+    const update = await pool.query(
+      'UPDATE payments SET status = $1, updated_at = NOW() WHERE transaction = $2',
+      [status, transactionId]
+    );
 
-      if (status === 'success') {
-        db.query(
-          'SELECT member_id, amount FROM payments WHERE transaction = ?',
-          [transactionId],
-          (err, results) => {
-            if (err || !results.length) return;
+    if (status === 'success') {
+      const paymentResult = await pool.query(
+        'SELECT member_id, amount FROM payments WHERE transaction = $1',
+        [transactionId]
+      );
 
-            const { member_id, amount } = results[0];
+      if (paymentResult.rows.length) {
+        const { member_id, amount } = paymentResult.rows[0];
+        const memberResult = await pool.query('SELECT total_paid FROM members WHERE id = $1', [member_id]);
+        if (memberResult.rows.length) {
+          const totalPaid = parseFloat(memberResult.rows[0].total_paid || 0) + parseFloat(amount);
+          const required = 50000;
+          let balance = required - totalPaid;
+          let extra = 0;
 
-            db.query('SELECT total_paid FROM members WHERE id = ?', [member_id], (err, results) => {
-              if (err || !results.length) return;
-
-              const totalPaid = parseFloat(results[0].total_paid || 0) + parseFloat(amount);
-              const required = 50000;
-              let balance = required - totalPaid;
-              let extra = 0;
-
-              if (balance < 0) {
-                extra = Math.abs(balance);
-                balance = 0;
-              }
-
-              db.query(
-                'UPDATE members SET total_paid = ?, balance = ?, extra_paid = ?, payment_status = "completed" WHERE id = ?',
-                [totalPaid, balance, extra, member_id]
-              );
-            });
+          if (balance < 0) {
+            extra = Math.abs(balance);
+            balance = 0;
           }
-        );
-      }
 
-      console.log(`[M-Pesa] Transaction ${transactionId} marked as "${status}"`);
-      res.status(200).json({ message: 'Webhook processed successfully' });
+          await pool.query(
+            'UPDATE members SET total_paid = $1, balance = $2, extra_paid = $3, payment_status = $4 WHERE id = $5',
+            [totalPaid, balance, extra, 'completed', member_id]
+          );
+        }
+      }
     }
-  );
+
+    console.log(`[M-Pesa] Transaction ${transactionId} marked as "${status}"`);
+    res.status(200).json({ message: 'Webhook processed successfully' });
+  } catch (err) {
+    console.error('Webhook DB error:', err);
+    res.status(500).json({ message: 'Error updating payment status.' });
+  }
 });
 
-
 // ======= PAYMENT STATUS CHECK =======
-paymentRouter.get('/mpesa/status/:transactionId', (req, res) => {
+paymentRouter.get('/mpesa/status/:transactionId', async (req, res) => {
   const { transactionId } = req.params;
-
-  db.query('SELECT status FROM payments WHERE transaction = ?', [transactionId], (err, results) => {
-    if (err) return res.status(500).json({ success: false, message: 'Error checking status.' });
-    if (!results.length) return res.status(404).json({ success: false, message: 'Transaction not found.' });
-
-    res.json({ success: true, status: results[0].status });
-  });
+  try {
+    const result = await pool.query('SELECT status FROM payments WHERE transaction = $1', [transactionId]);
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found.' });
+    res.json({ success: true, status: result.rows[0].status });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error checking status.' });
+  }
 });
 
 // ======= GET ALL PAYMENTS =======
-paymentRouter.get('/mpesa/pay', (req, res) => {
-  const query = `SELECT amount, phone, status, transaction, date_paid FROM payments ORDER BY date_paid DESC`;
-
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: 'Error fetching payments.' });
-
-    if (!Array.isArray(result) || !result.length) {
-      return res.status(404).json({ success: false, message: 'No payments found.' });
-    }
-
-    res.status(200).json({ success: true, payments: result });
-  });
+paymentRouter.get('/mpesa/pay', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT amount, phone, status, transaction, date_paid FROM payments ORDER BY date_paid DESC');
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'No payments found.' });
+    res.status(200).json({ success: true, payments: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error fetching payments.' });
+  }
 });
 
 // ======= COUNT PAYMENTS =======
-paymentRouter.get('/count', (req, res) => {
-  db.query('SELECT COUNT(*) AS total_payments FROM payments', (err, results) => {
-    if (err) return res.status(500).json({ success: false, message: 'Error counting payments.' });
-
-    res.json({ success: true, total: results[0].total_payments });
-  });
+paymentRouter.get('/count', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) AS total_payments FROM payments');
+    res.json({ success: true, total: result.rows[0].total_payments });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error counting payments.' });
+  }
 });
 
 // ======= MANUAL PAYMENT =======
-paymentRouter.post('/payment/manual', (req, res) => {
+paymentRouter.post('/payment/manual', async (req, res) => {
   const { memberId, amount } = req.body;
 
   if (!memberId || !amount || isNaN(amount) || amount <= 0) {
     return res.status(400).json({ success: false, message: 'Invalid member ID or amount.' });
   }
 
-  db.query('SELECT total_paid, phone FROM members WHERE id = ?', [memberId], (err, results) => {
-    if (err) return res.status(500).json({ success: false, message: 'Error fetching member.' });
-    if (!results.length) return res.status(404).json({ success: false, message: 'Member not found.' });
+  try {
+    const memberResult = await pool.query('SELECT total_paid, phone FROM members WHERE id = $1', [memberId]);
+    if (!memberResult.rows.length) return res.status(404).json({ success: false, message: 'Member not found.' });
 
-    const currentTotal = parseFloat(results[0].total_paid || 0);
+    const currentTotal = parseFloat(memberResult.rows[0].total_paid || 0);
     const newTotal = currentTotal + parseFloat(amount);
-    const phone = results[0].phone;
+    const phone = memberResult.rows[0].phone;
     const required = 50000;
-
     let balance = required - newTotal;
     let extra = 0;
 
@@ -214,30 +197,26 @@ paymentRouter.post('/payment/manual', (req, res) => {
       balance = 0;
     }
 
-    db.query(
-      'UPDATE members SET total_paid = ?, balance = ?, extra_paid = ?, payment_status = "completed", date = NOW() WHERE id = ?',
-      [newTotal, balance, extra, memberId],
-      (err) => {
-        if (err) return res.status(500).json({ success: false, message: 'Error updating member payment.' });
-
-        db.query(
-          'INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid) VALUES (?, ?, ?, ?, ?, NOW())',
-          [memberId, phone, amount, 'success', 'manual'],
-          (err) => {
-            if (err) return res.status(500).json({ success: false, message: 'Error recording payment.' });
-
-            res.status(200).json({
-              success: true,
-              message: 'Manual payment recorded successfully.',
-              total_paid: newTotal,
-              balance,
-              extra_paid: extra,
-            });
-          }
-        );
-      }
+    await pool.query(
+      'UPDATE members SET total_paid = $1, balance = $2, extra_paid = $3, payment_status = $4, date = NOW() WHERE id = $5',
+      [newTotal, balance, extra, 'completed', memberId]
     );
-  });
+
+    await pool.query(
+      'INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid) VALUES ($1, $2, $3, $4, $5, NOW())',
+      [memberId, phone, amount, 'success', 'manual']
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Manual payment recorded successfully.',
+      total_paid: newTotal,
+      balance,
+      extra_paid: extra,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error processing manual payment.' });
+  }
 });
 
 export default paymentRouter;
