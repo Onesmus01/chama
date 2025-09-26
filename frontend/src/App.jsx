@@ -24,6 +24,7 @@ import Dashboard from './admin/Dashboard.jsx';
 import Members from './admin/Members.jsx';
 import Payments from './admin/Payments.jsx';
 import Edit from './admin/Edit.jsx';
+import ScrollToTop from './components/ScrollToTop.jsx';
 
 const ProtectedRoute = ({ element, role }) => {
   const token =
@@ -70,6 +71,7 @@ const App = () => {
   return (
     <div className='bg-gray-200'>
       <Navbar />
+      <ScrollToTop />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
