@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 
 const Payments = () => {
+    const BASE_URL = "http://localhost:6500"; // <-- Base URL here
+
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -10,21 +12,18 @@ const Payments = () => {
         const fetchPaymentsAndMembers = async () => {
             try {
                 const [paymentsRes, membersRes] = await Promise.all([
-                    axios.get("http://localhost:6500/api/payment/mpesa/pay"),
-                    axios.get("http://localhost:6500/api/members/all/all_members")
+                    axios.get(`${BASE_URL}/api/payment/mpesa/pay`),
+                    axios.get(`${BASE_URL}/api/members/all/all_members`)
                 ]);
 
-                // Validate and extract data
                 const paymentsData = Array.isArray(paymentsRes.data) ? paymentsRes.data : paymentsRes.data?.payments || [];
                 const membersData = Array.isArray(membersRes.data) ? membersRes.data : membersRes.data?.members || [];
 
-                // Create a map for member ID to name
                 const memberMap = membersData.reduce((acc, member) => {
                     acc[member._id] = member.name || "Unknown";
                     return acc;
                 }, {});
 
-                // Enhance payment data with member names
                 const enrichedPayments = paymentsData.map(payment => ({
                     ...payment,
                     name: memberMap[payment.member_id] || "Unknown",

@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FaMobileAlt, FaMoneyBillWave } from "react-icons/fa";  // Importing FontAwesome icons
+import { FaMobileAlt, FaMoneyBillWave } from "react-icons/fa";
+
+// Use environment variable for backend
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 const Pay = () => {
   const [phone, setPhone] = useState("");
@@ -11,7 +14,7 @@ const Pay = () => {
   const [transactionId, setTransactionId] = useState("");
   const [intervalId, setIntervalId] = useState(null); // for polling
 
-  const webhookUrl = "https://chama-8.onrender.com/api/payment/mpesa/webhook";  // Your webhook URL
+  const webhookUrl = `${BASE_URL}/api/payment/mpesa/webhook`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,7 +29,7 @@ const Pay = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post("http://localhost:6500/api/payment/mpesa/pay", {
+      const response = await axios.post(`${BASE_URL}/api/payment/mpesa/pay`, {
         phone: `254${phone}`,
         amount,
       });
@@ -43,14 +46,11 @@ const Pay = () => {
       } else if (success) {
         setMessage(resMessage || "Payment request sent!");
         setStatus("success");
+        setPhone("");
+        setAmount("");
       } else {
         setMessage("Payment failed. Please try again.");
         setStatus("error");
-      }
-
-      if (success) {
-        setPhone("");
-        setAmount("");
       }
     } catch (error) {
       const errMsg =
@@ -64,20 +64,16 @@ const Pay = () => {
 
   const checkPaymentStatus = async (txnId) => {
     try {
-      const res = await axios.get(`http://localhost:6500/api/payment/mpesa/status/${txnId}`);
+      const res = await axios.get(`${BASE_URL}/api/payment/mpesa/status/${txnId}`);
       const { status: paymentStatus, message: statusMessage } = res.data;
 
-      if (paymentStatus === "success" || paymentStatus === "failed" || paymentStatus === "cancelled") {
+      if (["success", "failed", "cancelled"].includes(paymentStatus)) {
         setMessage(statusMessage || `Payment ${paymentStatus}`);
         setStatus(paymentStatus);
 
-        // Notify the backend via the webhook
         await notifyWebhook(txnId, paymentStatus);
 
-        // Stop polling
-        if (intervalId) {
-          clearInterval(intervalId);
-        }
+        if (intervalId) clearInterval(intervalId);
       } else {
         setMessage("Payment is still pending...");
         setStatus("pending");
@@ -99,12 +95,9 @@ const Pay = () => {
     }
   };
 
-  // Clean up interval on component unmount
   useEffect(() => {
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
+      if (intervalId) clearInterval(intervalId);
     };
   }, [intervalId]);
 
@@ -143,9 +136,7 @@ const Pay = () => {
               value={phone}
               onChange={(e) => {
                 const val = e.target.value;
-                if (/^\d{0,9}$/.test(val) && val.startsWith("7")) {
-                  setPhone(val);
-                }
+                if (/^\d{0,9}$/.test(val) && val.startsWith("7")) setPhone(val);
               }}
               required
             />

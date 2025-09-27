@@ -7,10 +7,12 @@ import {
   FaRegCalendarAlt,
   FaTrashAlt,
   FaEdit,
-  FaPrint, // Import the print icon
+  FaPrint,
 } from "react-icons/fa";
 
 const Edit = () => {
+  const BASE_URL = "http://localhost:6500"; // <-- Base URL here
+
   const [members, setMembers] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -23,13 +25,10 @@ const Edit = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch all members from the API
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const { data } = await axios.get(
-          "http://localhost:6500/api/members/all/all_members"
-        );
+        const { data } = await axios.get(`${BASE_URL}/api/members/all/all_members`);
         setMembers(Array.isArray(data.members) ? data.members : []);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -40,7 +39,6 @@ const Edit = () => {
     fetchMembers();
   }, []);
 
-  // Handle input changes in the form
   const handleInputChange = ({ target: { name, value } }) => {
     setFormData((prevData) => ({
       ...prevData,
@@ -48,7 +46,6 @@ const Edit = () => {
     }));
   };
 
-  // Handle member selection for editing
   const handleEdit = (member) => {
     setSelectedMember(member);
     setFormData({
@@ -60,7 +57,6 @@ const Edit = () => {
     setEditModalOpen(true);
   };
 
-  // Update the member data
   const handleUpdate = async () => {
     if (!selectedMember || !formData.name || !formData.phone || !formData.amount || !formData.date) {
       setError("Please fill in all fields.");
@@ -70,7 +66,7 @@ const Edit = () => {
     setLoading(true);
     try {
       const { status } = await axios.put(
-        `http://localhost:6500/api/members/updating/${selectedMember.id}/updated`,
+        `${BASE_URL}/api/members/updating/${selectedMember.id}/updated`,
         formData
       );
 
@@ -90,14 +86,10 @@ const Edit = () => {
     }
   };
 
-  // Delete a member
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this member?")) {
       try {
-        const { status } = await axios.delete(
-          `http://localhost:6500/api/members/${id}/delete`
-        );
-
+        const { status } = await axios.delete(`${BASE_URL}/api/members/${id}/delete`);
         if (status === 200) {
           setMembers((prevMembers) => prevMembers.filter((member) => member.id !== id));
         }
@@ -108,7 +100,6 @@ const Edit = () => {
     }
   };
 
-  // Close the edit modal
   const closeModal = () => {
     setEditModalOpen(false);
     setSelectedMember(null);
@@ -116,9 +107,8 @@ const Edit = () => {
     setError(null);
   };
 
-  // Handle print
   const handlePrint = () => {
-    window.print(); // This triggers the print dialog
+    window.print();
   };
 
   return (
@@ -132,7 +122,7 @@ const Edit = () => {
           onClick={handlePrint}
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition flex items-center justify-center space-x-2"
         >
-          <FaPrint size={18} /> {/* Print Icon */}
+          <FaPrint size={18} />
           <span>Print</span>
         </button>
       </div>
@@ -145,7 +135,6 @@ const Edit = () => {
               <th className="p-4 border">#</th>
               <th className="p-4 border"><FaUser className="inline mr-2" /> Member ID</th>
               <th className="p-4 border"><FaUser className="inline mr-2" /> Name</th>
-
               <th className="p-4 border"><FaReceipt className="inline mr-2" /> Transaction ID</th>
               <th className="p-4 border"><FaMoneyBillWave className="inline mr-2" /> Amount (KES)</th>
               <th className="p-4 border"><FaRegCalendarAlt className="inline mr-2" /> Date Paid</th>

@@ -11,6 +11,9 @@ import {
   FaEyeSlash,
 } from "react-icons/fa";
 
+// Use your environment variable for backend
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+
 const Savings = () => {
   const [savings, setSavings] = useState([]);
   const [totalSavings, setTotalSavings] = useState(0);
@@ -23,8 +26,6 @@ const Savings = () => {
   const [memberSince, setMemberSince] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-
-  // Hide all card amounts by default
   const [hideCard, setHideCard] = useState({
     totalSavings: true,
     expectedAmount: true,
@@ -53,7 +54,7 @@ const Savings = () => {
       try {
         setLoading(true);
         const { data } = await axios.get(
-          "http://localhost:6500/api/members/saved/save/saving",
+          `${BASE_URL}/api/members/saved/save/saving`,
           { withCredentials: true, headers: { Authorization: `Bearer ${token}` } }
         );
 
@@ -100,7 +101,6 @@ const Savings = () => {
 
   const handlePrint = useReactToPrint({ content: () => componentRef.current });
 
-  // Spinner loader
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center my-20">
@@ -119,7 +119,6 @@ const Savings = () => {
 
   return (
     <div className="max-w-7xl mx-auto my-16 px-6">
-      {/* Header */}
       <div className="text-center mb-10">
         <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
           Hello {name}, Your Savings Dashboard
@@ -127,7 +126,6 @@ const Savings = () => {
         <p className="text-gray-500 text-lg">{message}</p>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         {summaryCards.map((card, idx) => (
           <div
@@ -138,14 +136,12 @@ const Savings = () => {
             <p className={`text-2xl font-bold text-${card.color}-800 mb-2`}>
               {hideCard[card.key] ? "****" : `$${formatCurrency(card.value)}`}
             </p>
-            {/* Hide/Show Icon */}
             <button
               className="absolute top-4 right-4 text-gray-600 hover:text-gray-900 transition"
               onClick={() => setHideCard({ ...hideCard, [card.key]: !hideCard[card.key] })}
             >
               {hideCard[card.key] ? <FaEye /> : <FaEyeSlash />}
             </button>
-            {/* Progress Bar */}
             <div className="h-2 w-full bg-gray-200 rounded-full mt-4">
               <div
                 className={`h-2 rounded-full bg-${card.color}-500`}
@@ -159,7 +155,6 @@ const Savings = () => {
         ))}
       </div>
 
-      {/* Member Info */}
       <div className="bg-white p-6 rounded-3xl shadow-lg mb-12 border border-gray-200 hover:shadow-xl transition-all">
         <h2 className="text-2xl font-semibold mb-6 text-gray-800">Member Information</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-gray-700 font-medium">
@@ -170,7 +165,6 @@ const Savings = () => {
         </div>
       </div>
 
-      {/* Savings Table */}
       <div ref={componentRef} className="overflow-x-auto mb-12">
         <table className="min-w-full bg-white rounded-3xl shadow-lg overflow-hidden border border-gray-200">
           <thead>
@@ -198,7 +192,6 @@ const Savings = () => {
         </table>
       </div>
 
-      {/* Print Button */}
       <div className="flex justify-center">
         <button
           onClick={handlePrint}

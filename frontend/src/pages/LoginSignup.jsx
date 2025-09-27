@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 
-const BASE_URL = "http://localhost:6500/api/members";
+const BASE_URL = import.meta.env.VITE_BACKEND_URL + "/api/members";
 
 const InputField = ({ label, type, name, value, onChange }) => (
   <div className="mb-4">

@@ -10,6 +10,9 @@ import {
 import { useReactToPrint } from "react-to-print";
 import axios from "axios";
 
+// Use environment variable for backend
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+
 const Transaction = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +40,7 @@ const Transaction = () => {
       setError(null);
       try {
         const response = await axios.get(
-          "http://localhost:6500/api/members/transact/transactions/track",
+          `${BASE_URL}/api/members/transact/transactions/track`,
           {
             withCredentials: true,
             headers: { Authorization: `Bearer ${token}` },
@@ -94,14 +97,12 @@ const Transaction = () => {
     <div className="max-w-7xl mx-auto p-6">
       <h2 className="text-3xl font-bold text-center mb-8 text-gray-900">My Transactions</h2>
 
-      {/* Loading Spinner */}
       {loading && (
         <div className="flex justify-center items-center h-60">
           <FaSpinner className="animate-spin text-5xl text-blue-600" />
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="text-center text-red-600 font-semibold mb-4">
           ⚠️ Error: {error}
@@ -110,7 +111,6 @@ const Transaction = () => {
 
       {!loading && !error && (
         <>
-          {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-5 rounded-2xl shadow hover:shadow-lg transition">
               <div className="flex items-center justify-between mb-2">
@@ -142,7 +142,6 @@ const Transaction = () => {
             </div>
           </div>
 
-          {/* Transactions Table */}
           <div
             ref={printRef}
             className="bg-white p-6 shadow-lg rounded-xl overflow-x-auto animate-fadeIn"
@@ -161,7 +160,6 @@ const Transaction = () => {
             </table>
           </div>
 
-          {/* Print Button */}
           <div className="flex justify-center mt-6">
             <button
               onClick={handlePrint}

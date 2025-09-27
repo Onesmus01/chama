@@ -10,15 +10,19 @@ import withdrawalRouter from './routes/withdrawal.js';
 import dotenv from 'dotenv';
 import paymentRouter from './routes/payment.js';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit'; 
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
 const app = express();
 
+// Hardcoded base URL
+const BASE_URL = "https://chama-9.onrender.com";
+
+// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 100, 
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again later.'
@@ -46,7 +50,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:4173",
-      'https://chama-7.onrender.com',
+      BASE_URL,
       "http://192.168.126.1:4173/"
     ],
     methods: "GET,POST,PUT,DELETE",
@@ -57,26 +61,29 @@ app.use(
 
 app.use(cookieParser());
 
-app.use('/api/members',limiter, router);
-app.use('/api/withdraw',limiter, withdrawalRouter);
-app.use('/api/payment',limiter, paymentRouter);
+// Routers
+app.use('/api/members', limiter, router);
+app.use('/api/withdraw', limiter, withdrawalRouter);
+app.use('/api/payment', limiter, paymentRouter);
 app.use(contributionRouter);
 
+// Cloudinary config
 cloudinary.v2.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Logger with hardcoded URL
 const logger = async (req, res, next) => {
-  console.log(`${req.protocol}://${req.get('host')}${req.originalUrl} - ${moment().format()}`);
+  console.log(`${BASE_URL}${req.originalUrl} - ${moment().format()}`);
   next();
 };
 app.use(logger);
 
 app.get('/', (req, res) => {
-  res.send('working');
+  res.send(`Server is running at ${BASE_URL}`);
 });
 
 const PORT = process.env.PORT || 6500;
-app.listen(PORT, () => console.log(`server is listening at port ${PORT}`));
+app.listen(PORT, () => console.log(`Server is listening at ${BASE_URL}`));

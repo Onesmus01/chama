@@ -9,6 +9,9 @@ import {
   FaEdit,
 } from "react-icons/fa";
 
+// Use environment variable for backend
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+
 const Edit = () => {
   const [members, setMembers] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -26,7 +29,7 @@ const Edit = () => {
     const fetchMembers = async () => {
       try {
         const { data } = await axios.get(
-          "http://localhost:6500/api/members/all/all_members",
+          `${BASE_URL}/api/members/all/all_members`,
           { withCredentials: true }
         );
         setMembers(Array.isArray(data.members) ? data.members : []);
@@ -66,7 +69,7 @@ const Edit = () => {
     setLoading(true);
     try {
       const { status } = await axios.put(
-        `http://localhost:6500/api/members/updating/${selectedMember.id}/updated`,
+        `${BASE_URL}/api/members/updating/${selectedMember.id}/updated`,
         formData,
         { withCredentials: true }
       );
@@ -91,7 +94,7 @@ const Edit = () => {
     if (window.confirm("Are you sure you want to delete this member?")) {
       try {
         const { status } = await axios.delete(
-          `http://localhost:6500/api/members/${id}/delete`, 
+          `${BASE_URL}/api/members/${id}/delete`, 
           { withCredentials: true }
         );
 
