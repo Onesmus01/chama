@@ -46,11 +46,13 @@ app.use(helmet.noSniff());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// CORS configuration
 app.use(
   cors({
     origin: [
       "http://localhost:4173",
       BASE_URL,
+      "https://chama-2r6y.vercel.app", // Add your frontend here
       "http://192.168.126.1:4173/"
     ],
     methods: "GET,POST,PUT,DELETE",
