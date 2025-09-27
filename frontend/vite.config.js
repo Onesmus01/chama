@@ -1,10 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path' // <-- Add this
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   base: "/",
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "src") // <-- This enables '@/...' imports
+    }
+  },
   preview: {
     allowedHosts: ['chama-7.onrender.com'],
   },

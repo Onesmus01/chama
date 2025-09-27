@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
 import axios from "axios";
 import {
@@ -7,10 +6,9 @@ import {
   FaEnvelope,
   FaPhone,
   FaCalendarAlt,
-  FaMoneyBillWave,
-  FaFileInvoiceDollar,
   FaFileDownload,
-  FaInfoCircle,
+  FaEye,
+  FaEyeSlash,
 } from "react-icons/fa";
 
 const Savings = () => {
@@ -25,9 +23,16 @@ const Savings = () => {
   const [memberSince, setMemberSince] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const componentRef = useRef();
 
-  const { id } = useParams();
+  // Hide all card amounts by default
+  const [hideCard, setHideCard] = useState({
+    totalSavings: true,
+    expectedAmount: true,
+    extraPaid: true,
+    balance: true,
+  });
+
+  const componentRef = useRef();
 
   const getToken = () => {
     const localToken = localStorage.getItem("token");
@@ -35,43 +40,33 @@ const Savings = () => {
     const match = document.cookie.match(/(?:^|;\s*)token=([^;]*)/);
     return match ? match[1] : null;
   };
-
   const token = getToken();
 
-  // Helper function to safely format currency
-  const formatCurrency = (value) => Number(value || 0).toFixed(2);
+  const formatCurrency = (value) =>
+    Number(value || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   useEffect(() => {
     const fetchSavings = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(
-          `http://localhost:6500/api/members/saved/save/saving`,
-          {
-            withCredentials: true,
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
+        const { data } = await axios.get(
+          "http://localhost:6500/api/members/saved/save/saving",
+          { withCredentials: true, headers: { Authorization: `Bearer ${token}` } }
         );
 
         const {
-          name,
-          email,
-          phone,
-          member_since,
-          total_paid,
-          expected_amount,
-          message,
-          savings_data,
-        } = response.data;
+          name, email, phone, member_since,
+          total_paid, expected_amount, message, savings_data
+        } = data;
 
         setName(name || "User");
         setEmail(email || "No email provided");
         setPhone(phone || "No phone provided");
         setMemberSince(member_since ? new Date(member_since).toLocaleDateString() : "N/A");
 
-        // Ensure totalPaid is a number
         const total = Array.isArray(total_paid)
           ? total_paid.reduce((acc, entry) => acc + Number(entry.amount || 0), 0)
           : Number(total_paid) || 0;
@@ -91,13 +86,9 @@ const Savings = () => {
           setExtraPaid(0);
         }
 
-        if (total === 0) {
-          setMessage("You have not contributed yet.");
-        } else {
-          setMessage(message || "Thank you for your contribution.");
-        }
-      } catch (error) {
-        console.error("Error fetching savings:", error);
+        setMessage(total === 0 ? "You have not contributed yet." : (message || "Thank you for your contribution."));
+      } catch (err) {
+        console.error(err);
         setMessage("Failed to fetch savings data.");
       } finally {
         setLoading(false);
@@ -105,109 +96,115 @@ const Savings = () => {
     };
 
     fetchSavings();
-  }, [token, id]);
+  }, [token]);
 
-  const handlePrint = useReactToPrint({
-    content: () => componentRef.current,
-  });
+  const handlePrint = useReactToPrint({ content: () => componentRef.current });
 
+  // Spinner loader
   if (loading) {
     return (
-      <div className="text-center my-20 text-xl font-medium text-blue-700 animate-pulse">
-        <FaInfoCircle className="inline mr-2 text-blue-500" /> Loading your savings data...
+      <div className="flex flex-col items-center justify-center my-20">
+        <div className="w-16 h-16 border-4 border-blue-500 border-dashed rounded-full animate-spin mb-4"></div>
+        <p className="text-xl font-medium text-gray-700">Loading your savings data...</p>
       </div>
     );
   }
 
+  const summaryCards = [
+    { key: "totalSavings", title: "Total Savings", value: totalSavings, color: "green" },
+    { key: "expectedAmount", title: "Expected Contribution", value: expectedAmount, color: "blue" },
+    extraPaid > 0 && { key: "extraPaid", title: "Extra Paid", value: extraPaid, color: "purple" },
+    balance > 0 && { key: "balance", title: "Balance Remaining", value: balance, color: "red" },
+  ].filter(Boolean);
+
   return (
-    <div className="max-w-6xl mx-auto my-16 px-8 py-10 bg-white shadow-xl rounded-3xl border border-blue-200 transition-all duration-300">
-      <h2 className="text-4xl font-extrabold text-center mb-6 text-transparent bg-clip-text bg-gradient-to-r from-sky-500 via-indigo-600 to-blue-900 drop-shadow-xl tracking-tight font-[Inter]">
-        <FaMoneyBillWave className="inline mr-2 text-green-600" />
-        Hello {name}, Here’s Your Savings Summary
-      </h2>
+    <div className="max-w-7xl mx-auto my-16 px-6">
+      {/* Header */}
+      <div className="text-center mb-10">
+        <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
+          Hello {name}, Your Savings Dashboard
+        </h1>
+        <p className="text-gray-500 text-lg">{message}</p>
+      </div>
 
-      <p className="text-xl text-center text-green-700 font-semibold mb-4">
-        💰 Total Savings: <span className="font-bold text-green-900">${formatCurrency(totalSavings)}</span>
-      </p>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        {summaryCards.map((card, idx) => (
+          <div
+            key={idx}
+            className={`relative bg-gradient-to-r from-${card.color}-50 to-${card.color}-100 p-6 rounded-3xl shadow-lg hover:shadow-xl transition cursor-pointer`}
+          >
+            <p className="text-gray-500 text-sm mb-1">{card.title}</p>
+            <p className={`text-2xl font-bold text-${card.color}-800 mb-2`}>
+              {hideCard[card.key] ? "****" : `$${formatCurrency(card.value)}`}
+            </p>
+            {/* Hide/Show Icon */}
+            <button
+              className="absolute top-4 right-4 text-gray-600 hover:text-gray-900 transition"
+              onClick={() => setHideCard({ ...hideCard, [card.key]: !hideCard[card.key] })}
+            >
+              {hideCard[card.key] ? <FaEye /> : <FaEyeSlash />}
+            </button>
+            {/* Progress Bar */}
+            <div className="h-2 w-full bg-gray-200 rounded-full mt-4">
+              <div
+                className={`h-2 rounded-full bg-${card.color}-500`}
+                style={{
+                  width: `${Math.min((card.value / expectedAmount) * 100, 100)}%`,
+                  transition: "width 0.5s ease-in-out",
+                }}
+              ></div>
+            </div>
+          </div>
+        ))}
+      </div>
 
-      <p className="text-center text-lg mb-2 text-blue-700">
-        🎯 Expected Contribution: <span className="font-semibold">${formatCurrency(expectedAmount)}</span>
-      </p>
-
-      {extraPaid > 0 && (
-        <p className="text-center text-green-600 font-semibold text-lg mb-2">
-          ✅ Extra Paid: ${formatCurrency(extraPaid)} — Great job!
-        </p>
-      )}
-
-      {balance > 0 && (
-        <p className="text-center text-red-600 font-semibold text-lg mb-2">
-          ⚠️ Balance Remaining: ${formatCurrency(balance)} — Please complete your contribution.
-        </p>
-      )}
-
-      <div className="mb-12 bg-gradient-to-br from-blue-50 to-white rounded-2xl p-6 shadow-inner border border-blue-100">
-        <h3 className="text-2xl font-bold text-blue-800 mb-4 font-serif">
-          <FaUserAlt className="inline mr-2 text-blue-600" /> Member Information
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-lg text-gray-700 font-medium">
-          <p><FaUserAlt className="inline mr-2 text-blue-500" /> Name: <span className="font-semibold">{name}</span></p>
-          <p><FaEnvelope className="inline mr-2 text-blue-500" /> Email: <span className="font-semibold">{email}</span></p>
-          <p><FaPhone className="inline mr-2 text-blue-500" /> Phone: <span className="font-semibold">{phone}</span></p>
-          <p><FaCalendarAlt className="inline mr-2 text-blue-500" /> Member Since: <span className="font-semibold">{memberSince}</span></p>
+      {/* Member Info */}
+      <div className="bg-white p-6 rounded-3xl shadow-lg mb-12 border border-gray-200 hover:shadow-xl transition-all">
+        <h2 className="text-2xl font-semibold mb-6 text-gray-800">Member Information</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-gray-700 font-medium">
+          <p><FaUserAlt className="inline mr-2 text-gray-500" /> {name}</p>
+          <p><FaEnvelope className="inline mr-2 text-gray-500" /> {email}</p>
+          <p><FaPhone className="inline mr-2 text-gray-500" /> {phone}</p>
+          <p><FaCalendarAlt className="inline mr-2 text-gray-500" /> Member Since: {memberSince}</p>
         </div>
       </div>
 
-      {message && (
-        <div className="text-center text-red-500 font-medium text-lg mb-8">
-          <FaInfoCircle className="inline mr-2" /> {message}
-        </div>
-      )}
-
+      {/* Savings Table */}
       <div ref={componentRef} className="overflow-x-auto mb-12">
-        <table className="w-full text-left table-auto rounded-xl shadow-lg bg-white border border-gray-200">
+        <table className="min-w-full bg-white rounded-3xl shadow-lg overflow-hidden border border-gray-200">
           <thead>
-            <tr className="bg-blue-800 text-white text-lg">
-              <th className="p-4"><FaCalendarAlt className="inline mr-2" /> Date</th>
-              <th className="p-4"><FaMoneyBillWave className="inline mr-2" /> Amount</th>
-              <th className="p-4"><FaFileInvoiceDollar className="inline mr-2" /> Description</th>
+            <tr className="bg-gray-900 text-white text-left text-lg">
+              <th className="p-4">Date</th>
+              <th className="p-4">Amount</th>
+              <th className="p-4">Description</th>
             </tr>
           </thead>
           <tbody>
-            {Array.isArray(savings) && savings.length > 0 ? (
-              savings.map((entry, index) => (
-                <tr
-                  key={index}
-                  className="border-b border-gray-100 hover:bg-blue-50 transition duration-200"
-                >
-                  <td className="p-4">
-                    {entry.payment_date
-                      ? new Date(entry.payment_date).toLocaleDateString()
-                      : "N/A"}
-                  </td>
-                  <td className="p-4 text-green-600 font-semibold">
-                    {entry.amount != null ? `$${formatCurrency(entry.amount)}` : "$0.00"}
-                  </td>
+            {savings.length > 0 ? (
+              savings.map((entry, idx) => (
+                <tr key={idx} className="border-b hover:bg-gray-50 transition">
+                  <td className="p-4">{entry.payment_date ? new Date(entry.payment_date).toLocaleDateString() : "N/A"}</td>
+                  <td className="p-4">{`$${formatCurrency(entry.amount)}`}</td>
                   <td className="p-4">{entry.payment_method || "N/A"}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="3" className="text-center p-6 text-gray-500">
-                  No savings records found.
-                </td>
+                <td colSpan="3" className="text-center p-6 text-gray-500">No savings records found.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      <div className="flex justify-center mt-12">
+      {/* Print Button */}
+      <div className="flex justify-center">
         <button
           onClick={handlePrint}
-          className="flex items-center gap-3 px-8 py-3 bg-blue-900 hover:bg-blue-700 text-white text-lg font-semibold rounded-full shadow-md transition-all duration-300"
+          className="flex items-center gap-3 px-8 py-3 bg-blue-900 hover:bg-blue-700 text-white rounded-full shadow-lg transition"
         >
-          <FaFileDownload className="text-xl" /> Print Savings Report
+          <FaFileDownload /> Print Savings Report
         </button>
       </div>
     </div>

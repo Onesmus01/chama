@@ -381,7 +381,7 @@ router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res
 
 
 
-router.get("/transact/transactions", authorize(['member','admin']), async (req, res) => {
+router.get("/transact/transactions/track", authorize(['member','admin']), async (req, res) => {
     const memberId = req.member?.id; // Using req.member.id
     console.log("🚀 Member ID:", memberId);
 
