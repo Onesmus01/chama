@@ -103,26 +103,12 @@ paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
 
   const transactionId = stkCallback.CheckoutRequestID;
   const resultCode = stkCallback.ResultCode;
-
-  // Map result codes
-  let status = 'pending';
-  if (resultCode === 0) status = 'success';
-  else if (resultCode === 1032) status = 'cancelled';
-  else status = 'failed';
-
-  // Extract receipt if available
-  let receipt = null;
-  if (status === 'success' && stkCallback.CallbackMetadata) {
-    const receiptObj = stkCallback.CallbackMetadata.Item.find(
-      (item) => item.Name === 'MpesaReceiptNumber'
-    );
-    if (receiptObj) receipt = receiptObj.Value;
-  }
+  const status = resultCode === 0 ? 'success' : 'failed';
 
   try {
     await pool.query(
-      'UPDATE payments SET status = $1, receipt = $3, updated_at = NOW() WHERE transaction = $2',
-      [status, transactionId, receipt]
+      'UPDATE payments SET status = $1, updated_at = NOW() WHERE transaction = $2',
+      [status, transactionId]
     );
 
     // If success, update member balances
@@ -134,8 +120,8 @@ paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
 
       if (paymentResult.rows.length) {
         const { member_id, amount } = paymentResult.rows[0];
-        const memberResult = await pool.query('SELECT total_paid FROM members WHERE id = $1', [member_id]);
 
+        const memberResult = await pool.query('SELECT total_paid FROM members WHERE id = $1', [member_id]);
         if (memberResult.rows.length) {
           const totalPaid = parseFloat(memberResult.rows[0].total_paid || 0) + parseFloat(amount);
           const required = 50000;
@@ -155,7 +141,7 @@ paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
       }
     }
 
-    console.log(`[M-Pesa] Transaction ${transactionId} → ${status} ${receipt ? `Receipt: ${receipt}` : ''}`);
+    console.log(`[M-Pesa] Transaction ${transactionId} marked as "${status}"`);
     res.status(200).json({ message: 'Webhook processed successfully' });
   } catch (err) {
     console.error('Webhook DB error:', err);
@@ -202,7 +188,7 @@ paymentRouter.get('/mpesa/status/:transactionId', async (req, res) => {
 paymentRouter.get('/mpesa/pay', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT amount, phone, status, receipt, transaction, date_paid FROM payments ORDER BY date_paid DESC'
+      'SELECT amount, phone, status, transaction, date_paid FROM payments ORDER BY date_paid DESC'
     );
     if (!result.rows.length) {
       return res.status(404).json({ success: false, message: 'No payments found.' });
