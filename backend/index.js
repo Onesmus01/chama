@@ -16,6 +16,9 @@ dotenv.config();
 
 const app = express();
 
+// ✅ Fix proxy issue for Render
+app.set("trust proxy", 1);
+
 // Hardcoded base URL
 const BASE_URL = "https://chama-9.onrender.com";
 
@@ -29,8 +32,7 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Middleware to parse raw body for webhook processing
-
+// Helmet security
 app.use(helmet());
 app.use(helmet.contentSecurityPolicy({ useDefaults: true }));
 app.use(helmet.referrerPolicy({ policy: 'same-origin' }));
@@ -51,7 +53,7 @@ app.use(
     origin: [
       "http://localhost:4173",
       BASE_URL,
-      "https://chama-2r6y.vercel.app", // Add your frontend here
+      "https://chama-2r6y.vercel.app", // your frontend
       "http://192.168.126.1:4173/"
     ],
     methods: "GET,POST,PUT,DELETE",
@@ -61,6 +63,14 @@ app.use(
 );
 
 app.use(cookieParser());
+
+// ✅ Webhook logger middleware
+app.post('/api/payment/mpesa/webhook', (req, res, next) => {
+  console.log("✅ M-Pesa Webhook Hit at:", moment().format());
+  console.log("🔹 Headers:", req.headers);
+  console.log("🔹 Body:", JSON.stringify(req.body, null, 2));
+  next(); // pass control to paymentRouter
+});
 
 // Routers
 app.use('/api/members', limiter, router);
@@ -75,7 +85,7 @@ cloudinary.v2.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Logger with hardcoded URL
+// General logger
 const logger = async (req, res, next) => {
   console.log(`${BASE_URL}${req.originalUrl} - ${moment().format()}`);
   next();
@@ -87,4 +97,4 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 6500;
-app.listen(PORT, () => console.log(`Server is listening at ${BASE_URL}`));
+app.listen(PORT, () => console.log(`🚀 Server is listening at ${BASE_URL}`));
