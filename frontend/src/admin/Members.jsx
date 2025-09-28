@@ -11,7 +11,7 @@ import {
 } from "react-icons/fa";
 
 const Edit = () => {
-  const BASE_URL = "http://localhost:6500"; // <-- Base URL here
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
   const [members, setMembers] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);

@@ -14,8 +14,6 @@ const Pay = () => {
   const [transactionId, setTransactionId] = useState("");
   const [intervalId, setIntervalId] = useState(null); // for polling
 
-  const webhookUrl = `${BASE_URL}/api/payment/mpesa/webhook`;
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage(null);
@@ -71,8 +69,6 @@ const Pay = () => {
         setMessage(statusMessage || `Payment ${paymentStatus}`);
         setStatus(paymentStatus);
 
-        await notifyWebhook(txnId, paymentStatus);
-
         if (intervalId) clearInterval(intervalId);
       } else {
         setMessage("Payment is still pending...");
@@ -80,18 +76,6 @@ const Pay = () => {
       }
     } catch (error) {
       console.error("Error checking status:", error);
-    }
-  };
-
-  const notifyWebhook = async (txnId, paymentStatus) => {
-    try {
-      const response = await axios.post(webhookUrl, {
-        transactionId: txnId,
-        status: paymentStatus,
-      });
-      console.log("Webhook notification sent:", response.data);
-    } catch (error) {
-      console.error("Error sending webhook notification:", error);
     }
   };
 
@@ -126,7 +110,9 @@ const Pay = () => {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-gray-700 font-medium mb-1">Phone Number</label>
+          <label className="block text-gray-700 font-medium mb-1">
+            Phone Number
+          </label>
           <div className="flex items-center border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-600">
             <span className="px-3 bg-gray-100 text-gray-700">254</span>
             <input
@@ -144,7 +130,9 @@ const Pay = () => {
         </div>
 
         <div>
-          <label className="block text-gray-700 font-medium mb-1">Amount (KES)</label>
+          <label className="block text-gray-700 font-medium mb-1">
+            Amount (KES)
+          </label>
           <input
             type="number"
             placeholder="e.g. 100"
@@ -161,7 +149,9 @@ const Pay = () => {
           className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
           disabled={loading}
         >
-          {loading ? "Sending..." : (
+          {loading ? (
+            "Sending..."
+          ) : (
             <>
               <FaMobileAlt className="inline-block mr-2" />
               Pay with M-Pesa

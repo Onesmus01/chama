@@ -30,7 +30,6 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Middleware to parse raw body for webhook processing
-app.use('/api/payment/mpesa/webhook', express.raw({ type: '*/*' }));
 
 app.use(helmet());
 app.use(helmet.contentSecurityPolicy({ useDefaults: true }));

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 
 const Payments = () => {
-    const BASE_URL = "http://localhost:6500"; // <-- Base URL here
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
