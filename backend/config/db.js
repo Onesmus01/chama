@@ -116,16 +116,17 @@
 
 
 import pkg from "pg";
-const { Pool } = pkg;
 import dotenv from "dotenv";
-dotenv.config();
 
-// 🔹 Use a global pool for serverless environments (Vercel)
+dotenv.config();
+const { Pool } = pkg;
+
+// 🔹 Use a global pool for serverless environments (Vercel/Neon)
 let pool;
 
 if (!global.pool) {
   global.pool = new Pool({
-    connectionString: process.env.DATABASE_URL, // Neon connection string
+    connectionString: process.env.DATABASE_URL, // Neon/Postgres connection string
     ssl: { rejectUnauthorized: false }, // required for Neon SSL
   });
 }
@@ -143,61 +144,59 @@ CREATE TABLE IF NOT EXISTS members (
     role VARCHAR(20) CHECK (role IN ('admin', 'member')) DEFAULT 'member',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date DATE,
-    payment_status VARCHAR(20) CHECK (payment_status IN ('pending', 'completed', 'failed')) DEFAULT 'pending',
+    payment_status VARCHAR(20) CHECK (payment_status IN ('pending', 'completed', 'failed', 'success')) DEFAULT 'pending',
     amount NUMERIC(10, 2) DEFAULT 0.00,
     payment_amount_status VARCHAR(20) CHECK (payment_amount_status IN ('balance', 'bonus')),
     total_paid NUMERIC(10, 2) DEFAULT 0.00,
-    balance NUMERIC(10, 2) DEFAULT 50000.00,
+    expected_contribution NUMERIC(10, 2) DEFAULT 200000.00,
+    balance NUMERIC(10, 2) DEFAULT 200000.00,
     extra_paid NUMERIC(10, 2) DEFAULT 0.00,
-    reset_token VARCHAR(255) DEFAULT NULL,
-    reset_token_expires TIMESTAMP DEFAULT NULL
+    reset_token VARCHAR(255),
+    reset_token_expires TIMESTAMP
 );
 `;
 
 const contributionsTable = `
 CREATE TABLE IF NOT EXISTS contributions (
     id SERIAL PRIMARY KEY,
-    member_id INT NOT NULL,
-    amount NUMERIC(10,2) NOT NULL,
+    member_id INT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    amount NUMERIC(10, 2) NOT NULL,
     payment_method VARCHAR(50) NOT NULL,
     transaction_id VARCHAR(100) UNIQUE NOT NULL,
-    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `;
 
 const withdrawalsTable = `
 CREATE TABLE IF NOT EXISTS withdrawals (
     id SERIAL PRIMARY KEY,
-    member_id INT NOT NULL,
-    amount NUMERIC(10,2) NOT NULL,
+    member_id INT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    amount NUMERIC(10, 2) NOT NULL,
     withdrawal_method VARCHAR(50) NOT NULL,
     transaction VARCHAR(100) UNIQUE NOT NULL,
-    withdrawal_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+    withdrawal_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `;
 
 const paymentsTable = `
 CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,
-    member_id INT NOT NULL,
-    amount NUMERIC(10,2) NOT NULL,
+    member_id INT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    amount NUMERIC(10, 2) NOT NULL,
     phone VARCHAR(20) NOT NULL,
-    status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'failed')) DEFAULT 'pending',
+    status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'failed', 'success')) DEFAULT 'pending',
     date_paid TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT NULL,
-    transaction VARCHAR(64) UNIQUE NOT NULL,
-    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+    updated_at TIMESTAMP,
+    transaction VARCHAR(64) UNIQUE NOT NULL
 );
 `;
 
-// 🔹 Initialize DB (only once)
+// 🔹 Initialize DB safely
 async function initDB() {
   try {
-    await pool.connect();
-    console.log("✅ Connected to Neon PostgreSQL");
+    console.log("✅ Connecting to Neon PostgreSQL...");
 
+    // Just run queries directly; pool manages connections automatically
     await pool.query(membersTable);
     console.log("✅ Members table ready");
 
@@ -209,12 +208,12 @@ async function initDB() {
 
     await pool.query(paymentsTable);
     console.log("✅ Payments table ready");
-
   } catch (err) {
     console.error("❌ DB Initialization Error:", err);
   }
 }
 
+// 🔹 Immediately initialize tables
 initDB();
 
 export default pool;

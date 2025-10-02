@@ -24,7 +24,7 @@ const BASE_URL = "https://chama-9.onrender.com";
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 15 * 60 * 1000, // 15 min
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
@@ -47,20 +47,17 @@ app.use(helmet.noSniff());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// CORS configuration
-app.use(
-  cors({
-    origin: [
-      "http://localhost:4173",
-      BASE_URL,
-      "https://chama-2r6y.vercel.app", // your frontend
-      "http://192.168.126.1:4173/"
-    ],
-    methods: "GET,POST,PUT,DELETE",
-    allowedHeaders: "Content-Type, Authorization",
-    credentials: true
-  })
-);
+// ✅ CORS configuration
+app.use(cors({
+  origin: [
+    "http://localhost:4173",
+    BASE_URL,
+    "https://chama-2r6y.vercel.app"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
 
 app.use(cookieParser());
 
@@ -72,11 +69,17 @@ app.post('/api/payment/mpesa/webhook', (req, res, next) => {
   next(); // pass control to paymentRouter
 });
 
-// Routers
-app.use('/api/members', limiter, router);
-app.use('/api/withdraw', limiter, withdrawalRouter);
-app.use('/api/payment', limiter, paymentRouter);
-app.use(contributionRouter);
+// General request logger (after cors)
+app.use((req, res, next) => {
+  console.log(`[${moment().format()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// ✅ Routers
+app.use('/api/members', router);
+app.use('/api/withdraw', withdrawalRouter);
+app.use('/api/payment', paymentRouter);
+app.use('/api/contribution', contributionRouter); // Mount contributionRouter under a prefix
 
 // Cloudinary config
 cloudinary.v2.config({
@@ -85,13 +88,7 @@ cloudinary.v2.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// General logger
-const logger = async (req, res, next) => {
-  console.log(`${BASE_URL}${req.originalUrl} - ${moment().format()}`);
-  next();
-};
-app.use(logger);
-
+// Root route
 app.get('/', (req, res) => {
   res.send(`Server is running at ${BASE_URL}`);
 });

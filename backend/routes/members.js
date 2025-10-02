@@ -184,8 +184,8 @@ router.post("/register", async (req, res) => {
     // ✅ Set token in cookie
     res.cookie("authToken", token, {
       httpOnly: true,
-      secure: false, // change to true if using HTTPS
-      sameSite: "lax",
+      secure: true, // change to true if using HTTPS
+      sameSite: "None",
       maxAge: 24 * 60 * 60 * 1000,
     });
 
@@ -245,7 +245,7 @@ router.post("/login", async (req, res) => {
     res.cookie("authToken", token, {
       httpOnly: true,   // prevent JS access
       secure: true,     // only HTTPS (set false in localhost dev if needed)
-      sameSite: "Strict",
+      sameSite: "None",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
     });
 
@@ -311,9 +311,9 @@ router.post("/forgot/reset-password", async (req, res) => {
 
 //single member
 router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res) => {
-  console.log("🔍 Member object:", req.member);
-
   const memberId = req.member?.id;
+
+  console.log("🔹 Incoming request for memberId:", memberId);
 
   if (!memberId) {
     return res.status(401).json({ message: "Unauthorized. No member ID found." });
@@ -325,8 +325,8 @@ router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res
       m.name,
       m.email,
       m.phone,
-      m.total_paid,
-      m.created_at AS member_since,
+      COALESCE(m.member_since, m.created_at) AS member_since,
+      m.expected_contribution,
       c.id AS contribution_id,
       c.amount,
       c.payment_method,
@@ -334,51 +334,66 @@ router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res
       c.payment_date
     FROM members m
     LEFT JOIN contributions c ON m.id = c.member_id
-    WHERE m.id = $1;
+    WHERE m.id = $1
+    ORDER BY c.payment_date ASC;
   `;
 
   try {
     const { rows } = await db.query(sql, [memberId]);
+    console.log("🔹 Rows returned:", rows.length);
 
-    if (rows.length === 0) {
+    if (rows.length === 0) 
       return res.status(404).json({ message: "Member not found." });
-    }
 
-    const memberInfo = {
-      name: rows[0].name,
-      email: rows[0].email,
-      phone: rows[0].phone,
-      total_paid: rows[0].total_paid,
-      member_since: rows[0].member_since,
-    };
+    const member = rows[0];
 
-    const savings = rows
-      .filter(entry => entry.amount !== null)
-      .map(entry => ({
-        amount: entry.amount,
-        payment_method: entry.payment_method,
-        transaction_id: entry.transaction_id,
-        payment_date: entry.payment_date,
+    console.log("🔹 Raw member data:", member);
+
+    // Map contributions safely
+    const contributions = rows
+      .filter(row => row.amount !== null)
+      .map(row => ({
+        amount: Number(row.amount),
+        payment_method: row.payment_method || "N/A",
+        transaction_id: row.transaction_id || "N/A",
+        payment_date: row.payment_date ? new Date(row.payment_date).toISOString() : null,
       }));
 
-    // Check if total_paid is 0
-    if (rows[0].total_paid === 0) {
-      return res.status(200).json({
-        ...memberInfo,
-        savings: [],
-        message: "You have not contributed yet."
-      });
-    }
+    console.log("🔹 Contributions mapped:", contributions);
 
-    // If savings exist, send the response
-    res.json({ ...memberInfo, savings });
+    // Check expected_contribution type
+    console.log("🔹 Expected Contribution raw value:", member.expected_contribution, "Type:", typeof member.expected_contribution);
+
+    // Calculate total_paid dynamically
+    const totalPaid = contributions.reduce((acc, curr) => acc + curr.amount, 0);
+    console.log("🔹 Total Paid:", totalPaid);
+
+    // Calculate balance and extra_paid
+    const expectedContribution = Number(member.expected_contribution) || 0;
+    console.log("🔹 Expected Contribution after Number():", expectedContribution);
+    const balance = Math.max(expectedContribution - totalPaid, 0);
+    const extraPaid = Math.max(totalPaid - expectedContribution, 0);
+
+    console.log("🔹 Balance:", balance, "Extra Paid:", extraPaid);
+
+    res.json({
+      name: member.name || "N/A",
+      email: member.email || "N/A",
+      phone: member.phone || "N/A",
+      member_since: member.member_since ? new Date(member.member_since).toISOString() : "N/A",
+      total_paid: totalPaid,
+      expected_contribution: expectedContribution,
+      balance,
+      extra_paid: extraPaid,
+      contributions,
+      message: totalPaid === 0 ? "You have not contributed yet." : "Thank you for your contribution."
+    });
 
   } catch (err) {
     console.error("❌ Database error:", err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 
 router.get("/transact/transactions/track", authorize(['member','admin']), async (req, res) => {
@@ -414,8 +429,6 @@ router.get("/transact/transactions/track", authorize(['member','admin']), async 
         });
     }
 });
-
-
 
 //delete member
 

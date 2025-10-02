@@ -11,20 +11,21 @@ import {
   FaEyeSlash,
 } from "react-icons/fa";
 
-// Use your environment variable for backend
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 const Savings = () => {
-  const [savings, setSavings] = useState([]);
-  const [totalSavings, setTotalSavings] = useState(0);
-  const [expectedAmount, setExpectedAmount] = useState(0);
-  const [extraPaid, setExtraPaid] = useState(0);
-  const [balance, setBalance] = useState(0);
-  const [name, setName] = useState("User");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [memberSince, setMemberSince] = useState("");
-  const [message, setMessage] = useState("");
+  const [data, setData] = useState({
+    name: "User",
+    email: "",
+    phone: "",
+    memberSince: "",
+    totalSavings: 0,
+    expectedAmount: 0,
+    extraPaid: 0,
+    balance: 0,
+    contributions: [],
+    message: "",
+  });
   const [loading, setLoading] = useState(true);
   const [hideCard, setHideCard] = useState({
     totalSavings: true,
@@ -53,44 +54,51 @@ const Savings = () => {
     const fetchSavings = async () => {
       try {
         setLoading(true);
-        const { data } = await axios.get(
+
+        const response = await axios.get(
           `${BASE_URL}/api/members/saved/save/saving`,
-          { withCredentials: true, headers: { Authorization: `Bearer ${token}` } }
+          {
+            withCredentials: true,
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
 
-        const {
-          name, email, phone, member_since,
-          total_paid, expected_amount, message, savings_data
-        } = data;
+        const res = response.data;
 
-        setName(name || "User");
-        setEmail(email || "No email provided");
-        setPhone(phone || "No phone provided");
-        setMemberSince(member_since ? new Date(member_since).toLocaleDateString() : "N/A");
+        console.log("🔹 API Response:", res);
 
-        const total = Array.isArray(total_paid)
-          ? total_paid.reduce((acc, entry) => acc + Number(entry.amount || 0), 0)
-          : Number(total_paid) || 0;
+        // Safely parse numeric values
+        const totalPaid = Number(res.total_paid ?? 0);
+        const expectedContribution = Number(res.expected_contribution ?? 200000); // fallback
+        const balance = Number(res.balance ?? Math.max(expectedContribution - totalPaid, 0));
+        const extraPaid = Number(res.extra_paid ?? Math.max(totalPaid - expectedContribution, 0));
 
-        setTotalSavings(total);
-        setSavings(savings_data || []);
+        console.log("🔹 Parsed Values -> totalPaid:", totalPaid, "expectedContribution:", expectedContribution, "balance:", balance, "extraPaid:", extraPaid);
 
-        const expected = Number(expected_amount) || 0;
-        setExpectedAmount(expected);
-
-        const difference = total - expected;
-        if (difference > 0) {
-          setExtraPaid(difference);
-          setBalance(0);
-        } else {
-          setBalance(Math.abs(difference));
-          setExtraPaid(0);
-        }
-
-        setMessage(total === 0 ? "You have not contributed yet." : (message || "Thank you for your contribution."));
+        setData({
+          name: res.name || "User",
+          email: res.email || "No email provided",
+          phone: res.phone || "No phone provided",
+          memberSince: res.member_since
+            ? new Date(res.member_since).toLocaleDateString()
+            : "N/A",
+          totalSavings: totalPaid,
+          expectedAmount: expectedContribution,
+          balance,
+          extraPaid,
+          contributions: Array.isArray(res.contributions) ? res.contributions : [],
+          message:
+            res.message ||
+            (totalPaid > 0
+              ? "Thank you for your contribution."
+              : "You have not contributed yet."),
+        });
       } catch (err) {
-        console.error(err);
-        setMessage("Failed to fetch savings data.");
+        console.error("❌ Fetch Savings Error:", err);
+        setData((prev) => ({
+          ...prev,
+          message: "Failed to fetch savings data.",
+        }));
       } finally {
         setLoading(false);
       }
@@ -101,70 +109,90 @@ const Savings = () => {
 
   const handlePrint = useReactToPrint({ content: () => componentRef.current });
 
-  if (loading) {
+  if (loading)
     return (
       <div className="flex flex-col items-center justify-center my-20">
         <div className="w-16 h-16 border-4 border-blue-500 border-dashed rounded-full animate-spin mb-4"></div>
-        <p className="text-xl font-medium text-gray-700">Loading your savings data...</p>
+        <p className="text-xl font-medium text-gray-700">
+          Loading your savings data...
+        </p>
       </div>
     );
-  }
 
   const summaryCards = [
-    { key: "totalSavings", title: "Total Savings", value: totalSavings, color: "green" },
-    { key: "expectedAmount", title: "Expected Contribution", value: expectedAmount, color: "blue" },
-    extraPaid > 0 && { key: "extraPaid", title: "Extra Paid", value: extraPaid, color: "purple" },
-    balance > 0 && { key: "balance", title: "Balance Remaining", value: balance, color: "red" },
-  ].filter(Boolean);
+    { key: "totalSavings", title: "Total Savings", value: data.totalSavings, color: "green" },
+    { key: "expectedAmount", title: "Expected Contribution", value: data.expectedAmount, color: "blue" },
+    { key: "extraPaid", title: "Extra Paid", value: data.extraPaid, color: "purple" },
+    { key: "balance", title: "Balance Remaining", value: data.balance, color: "red" },
+  ];
+
+  const colorMap = {
+    green: "#16a34a",
+    blue: "#2563eb",
+    purple: "#7e22ce",
+    red: "#dc2626",
+  };
 
   return (
     <div className="max-w-7xl mx-auto my-16 px-6">
+      {/* Header */}
       <div className="text-center mb-10">
         <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
-          Hello {name}, Your Savings Dashboard
+          Hello {data.name}, Your Savings Dashboard
         </h1>
-        <p className="text-gray-500 text-lg">{message}</p>
+        <p className="text-gray-500 text-lg">{data.message}</p>
       </div>
 
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        {summaryCards.map((card, idx) => (
+        {summaryCards.map((card) => (
           <div
-            key={idx}
-            className={`relative bg-gradient-to-r from-${card.color}-50 to-${card.color}-100 p-6 rounded-3xl shadow-lg hover:shadow-xl transition cursor-pointer`}
+            key={card.key}
+            className="relative p-6 rounded-3xl shadow-lg hover:shadow-xl transition cursor-pointer"
+            style={{ backgroundColor: `${colorMap[card.color]}1A` }}
           >
             <p className="text-gray-500 text-sm mb-1">{card.title}</p>
-            <p className={`text-2xl font-bold text-${card.color}-800 mb-2`}>
+            <p className="text-2xl font-bold mb-2">
               {hideCard[card.key] ? "****" : `$${formatCurrency(card.value)}`}
             </p>
             <button
               className="absolute top-4 right-4 text-gray-600 hover:text-gray-900 transition"
-              onClick={() => setHideCard({ ...hideCard, [card.key]: !hideCard[card.key] })}
+              onClick={() =>
+                setHideCard({ ...hideCard, [card.key]: !hideCard[card.key] })
+              }
             >
               {hideCard[card.key] ? <FaEye /> : <FaEyeSlash />}
             </button>
             <div className="h-2 w-full bg-gray-200 rounded-full mt-4">
               <div
-                className={`h-2 rounded-full bg-${card.color}-500`}
+                className="h-2 rounded-full"
                 style={{
-                  width: `${Math.min((card.value / expectedAmount) * 100, 100)}%`,
+                  width: data.expectedAmount
+                    ? `${Math.min((card.value / data.expectedAmount) * 100, 100)}%`
+                    : "0%",
+                  backgroundColor: colorMap[card.color],
                   transition: "width 0.5s ease-in-out",
                 }}
-              ></div>
+              />
             </div>
           </div>
         ))}
       </div>
 
+      {/* Member Info */}
       <div className="bg-white p-6 rounded-3xl shadow-lg mb-12 border border-gray-200 hover:shadow-xl transition-all">
-        <h2 className="text-2xl font-semibold mb-6 text-gray-800">Member Information</h2>
+        <h2 className="text-2xl font-semibold mb-6 text-gray-800">
+          Member Information
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-gray-700 font-medium">
-          <p><FaUserAlt className="inline mr-2 text-gray-500" /> {name}</p>
-          <p><FaEnvelope className="inline mr-2 text-gray-500" /> {email}</p>
-          <p><FaPhone className="inline mr-2 text-gray-500" /> {phone}</p>
-          <p><FaCalendarAlt className="inline mr-2 text-gray-500" /> Member Since: {memberSince}</p>
+          <p><FaUserAlt className="inline mr-2 text-gray-500" /> {data.name}</p>
+          <p><FaEnvelope className="inline mr-2 text-gray-500" /> {data.email}</p>
+          <p><FaPhone className="inline mr-2 text-gray-500" /> {data.phone}</p>
+          <p><FaCalendarAlt className="inline mr-2 text-gray-500" /> Member Since: {data.memberSince}</p>
         </div>
       </div>
 
+      {/* Savings Table */}
       <div ref={componentRef} className="overflow-x-auto mb-12">
         <table className="min-w-full bg-white rounded-3xl shadow-lg overflow-hidden border border-gray-200">
           <thead>
@@ -175,23 +203,28 @@ const Savings = () => {
             </tr>
           </thead>
           <tbody>
-            {savings.length > 0 ? (
-              savings.map((entry, idx) => (
+            {data.contributions.length > 0 ? (
+              data.contributions.map((entry, idx) => (
                 <tr key={idx} className="border-b hover:bg-gray-50 transition">
-                  <td className="p-4">{entry.payment_date ? new Date(entry.payment_date).toLocaleDateString() : "N/A"}</td>
+                  <td className="p-4">
+                    {entry.payment_date ? new Date(entry.payment_date).toLocaleDateString() : "N/A"}
+                  </td>
                   <td className="p-4">{`$${formatCurrency(entry.amount)}`}</td>
                   <td className="p-4">{entry.payment_method || "N/A"}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="3" className="text-center p-6 text-gray-500">No savings records found.</td>
+                <td colSpan="3" className="text-center p-6 text-gray-500">
+                  No savings records found.
+                </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
+      {/* Print Button */}
       <div className="flex justify-center">
         <button
           onClick={handlePrint}

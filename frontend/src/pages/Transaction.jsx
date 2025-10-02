@@ -5,24 +5,25 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaClock,
+  FaChevronDown,
+  FaChevronUp,
   FaSpinner,
 } from "react-icons/fa";
 import { useReactToPrint } from "react-to-print";
 import axios from "axios";
 
-// Use environment variable for backend
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 const Transaction = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAll, setShowAll] = useState(false);
   const printRef = useRef(null);
 
   const handlePrint = useReactToPrint({
     content: () => printRef.current,
     documentTitle: "Transaction Report",
-    onAfterPrint: () => console.log("Print complete"),
   });
 
   const getToken = () => {
@@ -31,7 +32,6 @@ const Transaction = () => {
     const match = document.cookie.match(/(?:^|;\s*)token=([^;]*)/);
     return match ? match[1] : null;
   };
-
   const token = getToken();
 
   useEffect(() => {
@@ -57,34 +57,41 @@ const Transaction = () => {
     fetchTransactions();
   }, [token]);
 
+  // Counts & totals
   const totalAmount = transactions.reduce((acc, tx) => acc + Number(tx.amount || 0), 0);
-  const completedCount = transactions.filter((tx) => tx.status === "completed").length;
+  const completedCount = transactions.filter((tx) => tx.status === "success").length;
   const failedCount = transactions.filter((tx) => tx.status === "failed").length;
   const pendingCount = transactions.filter((tx) => tx.status === "pending").length;
 
-  const renderTransactions = () =>
-    transactions.length ? (
-      transactions.map((tx, index) => (
-        <tr key={index} className="text-center hover:bg-gray-50 transition">
-          <td className="p-3 border">{new Date(tx.date_paid).toLocaleDateString()}</td>
-          <td className="p-3 border font-mono">{tx.transaction}</td>
-          <td className="p-3 border">${tx.amount}</td>
-          <td className="p-3 border">{tx.phone}</td>
-          <td className="p-3 border font-semibold">
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                tx.status === "completed"
-                  ? "bg-green-100 text-green-700"
-                  : tx.status === "failed"
-                  ? "bg-red-100 text-red-700"
-                  : "bg-yellow-100 text-yellow-700"
-              }`}
-            >
-              {tx.status}
-            </span>
-          </td>
-        </tr>
-      ))
+  const formatStatus = (status) => {
+    switch (status) {
+      case "success":
+        return { label: "Completed", style: "bg-green-100 text-green-700" };
+      case "failed":
+        return { label: "Failed", style: "bg-red-100 text-red-700" };
+      case "pending":
+      default:
+        return { label: "Pending", style: "bg-yellow-100 text-yellow-700" };
+    }
+  };
+
+  const renderTransactions = () => {
+    const list = showAll ? transactions : transactions.slice(0, 5); // first 5 by default
+    return list.length ? (
+      list.map((tx, index) => {
+        const { label, style } = formatStatus(tx.status);
+        return (
+          <tr key={index} className="text-center hover:bg-gray-50 transition">
+            <td className="p-3 border">{tx.date_paid ? new Date(tx.date_paid).toLocaleDateString() : "—"}</td>
+            <td className="p-3 border font-mono">{tx.transaction}</td>
+            <td className="p-3 border">${Number(tx.amount).toLocaleString()}</td>
+            <td className="p-3 border">{tx.phone}</td>
+            <td className="p-3 border font-semibold">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${style}`}>{label}</span>
+            </td>
+          </tr>
+        );
+      })
     ) : (
       <tr>
         <td colSpan="5" className="text-center p-4 text-gray-500">
@@ -92,10 +99,13 @@ const Transaction = () => {
         </td>
       </tr>
     );
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      <h2 className="text-3xl font-bold text-center mb-8 text-gray-900">My Transactions</h2>
+      <h2 className="text-3xl font-bold text-center mb-8 text-gray-900">
+        My Transactions
+      </h2>
 
       {loading && (
         <div className="flex justify-center items-center h-60">
@@ -111,6 +121,7 @@ const Transaction = () => {
 
       {!loading && !error && (
         <>
+          {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-5 rounded-2xl shadow hover:shadow-lg transition">
               <div className="flex items-center justify-between mb-2">
@@ -142,9 +153,10 @@ const Transaction = () => {
             </div>
           </div>
 
+          {/* Transactions Table */}
           <div
             ref={printRef}
-            className="bg-white p-6 shadow-lg rounded-xl overflow-x-auto animate-fadeIn"
+            className="bg-white p-6 shadow-lg rounded-xl overflow-x-auto animate-fadeIn mb-4"
           >
             <table className="w-full border-collapse border border-gray-200">
               <thead>
@@ -160,7 +172,21 @@ const Transaction = () => {
             </table>
           </div>
 
-          <div className="flex justify-center mt-6">
+          {/* Toggle All Transactions */}
+          {transactions.length > 5 && (
+            <div className="flex justify-center mb-4">
+              <button
+                onClick={() => setShowAll(!showAll)}
+                className="flex items-center gap-2 px-6 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg shadow transition"
+              >
+                {showAll ? "Show Less" : "Show All Transactions"}
+                {showAll ? <FaChevronUp /> : <FaChevronDown />}
+              </button>
+            </div>
+          )}
+
+          {/* Print Button */}
+          <div className="flex justify-center mt-2">
             <button
               onClick={handlePrint}
               className="flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 transition"
