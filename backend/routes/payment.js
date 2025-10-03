@@ -3,6 +3,11 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import pool from '../config/db.js'; // Postgres pool
 import validator from 'validator';
+import nodemailer from 'nodemailer';
+import PDFDocument from 'pdfkit';
+import { Buffer } from 'buffer';
+import transporter from "../config/nodemailer.js";
+
 
 dotenv.config();
 const paymentRouter = express.Router();
@@ -16,6 +21,8 @@ const {
   CALLBACK_URL,
   WEBHOOK_SECRET,   // 🔒 Protect webhook
   MPESA_ENV,        // "sandbox" or "production"
+  EMAIL_USER,
+  EMAIL_PASS
 } = process.env;
 
 if (!MPESA_CONSUMER_KEY || !MPESA_CONSUMER_SECRET || !MPESA_SHORTCODE || !MPESA_PASSKEY || !CALLBACK_URL) {
@@ -55,7 +62,51 @@ const getMpesaToken = async () => {
   return cachedToken;
 };
 
-// ======= INITIATE PAYMENT =======
+// ======= EMAIL SETUP =======
+
+
+const sendPaymentEmail = async (memberEmail, memberName, amount, transactionId) => {
+  try {
+    // Generate PDF receipt
+    const doc = new PDFDocument();
+    let buffers = [];
+    doc.on('data', buffers.push.bind(buffers));
+    doc.on('end', async () => {
+      const pdfData = Buffer.concat(buffers);
+
+      // Send email
+      const mailOptions = {
+        from: process.env.SENDER_EMAIL,
+        to: memberEmail,
+        subject: 'Payment Confirmation - Chama',
+        text: `Hello ${memberName},\n\nYour payment of KES ${amount} has been received. Transaction ID: ${transactionId}\n\nThank you for using Chama!`,
+        attachments: [
+          {
+            filename: `Receipt-${transactionId}.pdf`,
+            content: pdfData,
+          },
+        ],
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`[EMAIL] Payment receipt sent to ${memberEmail}`);
+    });
+
+    doc.fontSize(20).text('Chama Payment Receipt', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(14).text(`Hello ${memberName},`);
+    doc.text(`We have received your payment successfully.`);
+    doc.text(`Amount: KES ${amount}`);
+    doc.text(`Transaction ID: ${transactionId}`);
+    doc.text(`Date: ${new Date().toLocaleString()}`);
+    doc.moveDown();
+    doc.text('Thank you for being a part of Chama!');
+    doc.end();
+  } catch (err) {
+    console.error('[EMAIL ERROR]', err);
+  }
+};
+
 // ======= INITIATE PAYMENT =======
 paymentRouter.post('/mpesa/pay', async (req, res) => {
   const phone = sanitizeInput(req.body.phone);
@@ -66,9 +117,8 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
   }
 
   try {
-    // Check if member exists
     const result = await pool.query('SELECT id FROM members WHERE phone = $1', [phone]);
-    const memberId = result.rows.length ? result.rows[0].id : null; // <-- memberId is null if not found
+    const memberId = result.rows.length ? result.rows[0].id : null;
 
     const token = await getMpesaToken();
     const timestamp = new Date().toISOString().replace(/[-T:]/g, '').slice(0, 14);
@@ -92,7 +142,6 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
 
     const checkoutId = data.CheckoutRequestID;
 
-    // Insert payment record; member_id may be null
     await pool.query(
       'INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid) VALUES ($1, $2, $3, $4, $5, NOW())',
       [memberId, phone, amount, 'pending', checkoutId]
@@ -110,10 +159,8 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
   }
 });
 
-
 // ======= M-PESA CALLBACK =======
 paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
-  // 🔒 Verify secret if set
   if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     return res.status(403).json({ message: 'Unauthorized webhook' });
   }
@@ -133,13 +180,11 @@ paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
   console.log(`[CALLBACK] Transaction: ${transactionId}, ResultCode: ${resultCode}, Status: ${status}`);
 
   try {
-    // Log callback for auditing (stringify payload)
     await pool.query(
       'INSERT INTO mpesa_logs (transaction_id, status, payload) VALUES ($1, $2, $3)',
       [transactionId, status, JSON.stringify(data)]
     );
 
-    // Update payment status
     await pool.query(
       'UPDATE payments SET status = $1, updated_at = NOW() WHERE transaction = $2',
       [status, transactionId]
@@ -153,7 +198,7 @@ paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
 
       if (paymentResult.rows.length) {
         const { member_id, amount } = paymentResult.rows[0];
-        const memberResult = await pool.query('SELECT total_paid, expected_contribution FROM members WHERE id = $1', [member_id]);
+        const memberResult = await pool.query('SELECT total_paid, expected_contribution, name, email FROM members WHERE id = $1', [member_id]);
 
         if (memberResult.rows.length) {
           const totalPaid = parseFloat(memberResult.rows[0].total_paid || 0) + parseFloat(amount);
@@ -170,6 +215,9 @@ paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
             'UPDATE members SET total_paid = $1, balance = $2, extra_paid = $3, payment_status = $4 WHERE id = $5',
             [totalPaid, balance, extra, balance === 0 ? 'completed' : 'pending', member_id]
           );
+
+          // SEND EMAIL + PDF RECEIPT
+          await sendPaymentEmail(memberResult.rows[0].email, memberResult.rows[0].name, amount, transactionId);
 
           console.log(`[CALLBACK] Member ${member_id} updated. totalPaid=${totalPaid}, balance=${balance}, extra=${extra}`);
         }
@@ -257,7 +305,7 @@ paymentRouter.post('/payment/manual', async (req, res) => {
 
   try {
     const memberResult = await pool.query(
-      'SELECT total_paid, phone, expected_contribution FROM members WHERE id = $1',
+      'SELECT total_paid, phone, expected_contribution, name, email FROM members WHERE id = $1',
       [memberId]
     );
 
@@ -268,6 +316,8 @@ paymentRouter.post('/payment/manual', async (req, res) => {
     const currentTotal = parseFloat(memberResult.rows[0].total_paid || 0);
     const expectedContribution = parseFloat(memberResult.rows[0].expected_contribution || 0);
     const phone = memberResult.rows[0].phone;
+    const memberName = memberResult.rows[0].name;
+    const memberEmail = memberResult.rows[0].email;
     const newTotal = currentTotal + parseFloat(amount);
 
     let balance = expectedContribution - newTotal;
@@ -287,6 +337,9 @@ paymentRouter.post('/payment/manual', async (req, res) => {
       'INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid) VALUES ($1, $2, $3, $4, $5, NOW())',
       [memberId, phone, amount, 'success', transactionRef]
     );
+
+    // SEND EMAIL + PDF RECEIPT
+    await sendPaymentEmail(memberEmail, memberName, amount, transactionRef);
 
     console.log(`[MANUAL] Member ${memberId} manual payment recorded. Amount=${amount}, newTotal=${newTotal}, Ref=${transactionRef}`);
 

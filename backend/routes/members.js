@@ -10,6 +10,7 @@ import fs from 'fs';
 import multer from 'multer'
 import {authorize} from '../middleware/authorize.js'
 import {verifyAdmin} from '../middleware/verifyAdmin.js'
+import transporter from "../config/nodemailer.js";
 
 
 
@@ -48,14 +49,6 @@ const sendEmail = async (to, subject, text) => {
 // ✔ Register Member
 import nodemailer from "nodemailer";
 
-// Create a transporter to send emails using Gmail
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: "your-email@gmail.com", // 🔒 your Gmail
-        pass: "your-app-password"     // 🔒 app password from Google
-    },
-});
 
 // Function to send a welcome email to the new member
 const sendWelcomeEmail = async (userEmail, userName) => {
@@ -113,10 +106,15 @@ const sendNewMemberNotificationEmail = async (newMemberName) => {
 
 
 
+dotenv.config();
+
+// REGISTER MEMBER
 router.post("/register", async (req, res) => {
-  console.log("Incoming request body:", req.body);
+  console.log("✅ Incoming request body:", req.body);
+
   const { name, email, phone, password, role = "member" } = req.body;
 
+  // ===== Validate input =====
   if (!name || !email || !phone || !password) {
     return res.status(400).json({ success: false, msg: "All fields are required" });
   }
@@ -125,7 +123,7 @@ router.post("/register", async (req, res) => {
   if (!phoneRegex.test(phone)) {
     return res.status(400).json({
       success: false,
-      msg: "Phone number must start with 254 and be exactly 12 digits long",
+      msg: "Phone number must start with 254 or 07 and be valid",
     });
   }
 
@@ -137,21 +135,18 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    // ✅ Check if email or phone already exists
+    // ===== Check if email or phone already exists =====
     const checkQuery = `SELECT id FROM members WHERE email = $1 OR phone = $2`;
     const { rows: existing } = await db.query(checkQuery, [email, phone]);
-
     if (existing.length > 0) {
-      return res.status(400).json({
-        success: false,
-        msg: "Email or phone number already in use",
-      });
+      return res.status(400).json({ success: false, msg: "Email or phone already in use" });
     }
+    console.log("✅ Email and phone are available");
 
-    // ✅ Hash password
+    // ===== Hash password =====
     const hashedPassword = await bcryptjs.hash(password, 10);
 
-    // ✅ Insert new member and RETURNING id
+    // ===== Insert member into DB =====
     const insertQuery = `
       INSERT INTO members (name, email, phone, password, role)
       VALUES ($1, $2, $3, $4, $5)
@@ -159,37 +154,64 @@ router.post("/register", async (req, res) => {
     `;
     const insertRes = await db.query(insertQuery, [name, email, phone, hashedPassword, role]);
     const newMemberId = insertRes.rows[0].id;
+    console.log("✅ Member inserted with ID:", newMemberId);
 
-    // ✅ Create token
-    const token = jwt.sign(
-      { id: newMemberId, email, role },
-      process.env.SECRET_KEY,
-      { expiresIn: "7d" }
-    );
+    // ===== Generate JWT token =====
+    const token = jwt.sign({ id: newMemberId, email, role }, process.env.SECRET_KEY, { expiresIn: "7d" });
 
-    // ✅ Send welcome email
+    // ===== Send welcome email =====
+    if (!process.env.SENDER_EMAIL) {
+      console.warn("⚠️ SENDER_EMAIL not defined in .env");
+    }
+    if (!email) {
+      console.warn("⚠️ Recipient email is empty");
+    }
+
     try {
-      await sendWelcomeEmail(email, name);
+      const mailOptions = {
+        from: process.env.SENDER_EMAIL,
+        to: email,
+        subject: "🎉 Welcome to Our Group Savings Platform!",
+        text: `Hello ${name},\n\nThank you for joining our group savings community! Start contributing and track your savings.\n\nHappy saving!\n\n- Your Savings Team`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 700px; margin:auto; padding:20px; background-color:#f8f8f8; color:#333;">
+            <h2 style="color:#2c3e50; text-align:center;">💰 Welcome to Group Savings!</h2>
+            <p>Hi <strong>${name}</strong>,</p>
+            <p>Congratulations on joining our <strong>group savings community</strong>! Your account has been created successfully with email: <strong>${email}</strong>.</p>
+            <p>💡 Get started by making your first contribution and track your progress in real-time.</p>
+
+            <h3 style="margin-top: 30px; color:#4CAF50;">📈 Benefits of Group Savings</h3>
+            <ul>
+              <li>Easy and transparent tracking of contributions</li>
+              <li>Collaborate with your group members</li>
+              <li>Receive timely updates and notifications</li>
+              <li>Celebrate milestones and completed savings!</li>
+            </ul>
+
+            <p style="margin-top: 20px;">✨ Start contributing today and grow your savings with the group!</p>
+
+            <hr style="margin:30px 0;">
+            <p style="font-size:0.85em; color:#888; text-align:center;">
+              You're receiving this email because you joined our group savings platform.<br>
+              <strong>The Group Savings Team</strong>
+            </p>
+          </div>
+        `,
+      };
+
+      const info = await transporter.sendMail(mailOptions);
+      console.log("✅ Welcome email sent successfully:", info.messageId);
     } catch (emailErr) {
-      console.error("Email sending failed:", emailErr.message);
+      console.error("❌ Welcome email failed:", emailErr.message);
     }
 
-    // ✅ Send notification email
-    try {
-      await sendNewMemberNotificationEmail(name);
-    } catch (notificationErr) {
-      console.error("Notification email sending failed:", notificationErr.message);
-    }
-
-    // ✅ Set token in cookie
+    // ===== Set cookie and header =====
     res.cookie("authToken", token, {
       httpOnly: true,
-      secure: true, // change to true if using HTTPS
+      secure: true,
       sameSite: "None",
       maxAge: 24 * 60 * 60 * 1000,
     });
-
-    // ✅ Also send token in headers
     res.setHeader("Authorization", `Bearer ${token}`);
 
     return res.status(201).json({
@@ -197,11 +219,14 @@ router.post("/register", async (req, res) => {
       message: "✅ Member registered successfully",
       token,
     });
+
   } catch (error) {
-    console.error("Error:", error);
+    console.error("❌ Registration error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
+
+
 
 
 // LOGIN MEMBER
@@ -346,7 +371,7 @@ router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res
       return res.status(404).json({ message: "Member not found." });
     }
 
-    // Pick first row for member info
+    // Member info from first row
     const first = rows[0];
     const member = {
       id: first.member_id,
@@ -359,7 +384,7 @@ router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res
       expected_contribution: Number(first.expected_contribution) || 0,
     };
 
-    // Map payments safely
+    // Map all payments
     const payments = rows
       .filter(r => r.amount !== null)
       .map(r => ({
@@ -370,17 +395,21 @@ router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res
         date_paid: r.date_paid ? new Date(r.date_paid).toISOString() : null,
       }));
 
-    // Calculate totals
-    const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
+    // Only completed payments count for totals
+    const completedPayments = payments.filter(
+      p => p.status.toLowerCase() === "completed"
+    );
+
+    const totalPaid = completedPayments.reduce((acc, p) => acc + p.amount, 0);
     const balance = Math.max(member.expected_contribution - totalPaid, 0);
     const extraPaid = Math.max(totalPaid - member.expected_contribution, 0);
 
     res.json({
       ...member,
-      total_paid: totalPaid,
+      total_paid: totalPaid, // only completed transactions
       balance,
       extra_paid: extraPaid,
-      payments,
+      payments, // still send all payments to show in table if needed
       message:
         totalPaid === 0
           ? "You have not contributed yet."
@@ -392,6 +421,7 @@ router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res
     res.status(500).json({ message: "Internal server error", error: err.message });
   }
 });
+
 
 
 
