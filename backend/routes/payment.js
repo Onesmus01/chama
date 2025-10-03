@@ -161,48 +161,88 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
 
 // ======= M-PESA CALLBACK =======
 paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
+  // 🔐 Verify webhook secret
   if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    console.warn('[CALLBACK] ❌ Unauthorized webhook request');
     return res.status(403).json({ message: 'Unauthorized webhook' });
   }
 
   const data = req.body;
-  console.log('[CALLBACK] Full payload:', JSON.stringify(data, null, 2));
+  console.log('\n[CALLBACK] ===== NEW WEBHOOK RECEIVED =====');
+  console.log('[CALLBACK] Full Payload:', JSON.stringify(data, null, 2));
 
   const stkCallback = data?.Body?.stkCallback;
   if (!stkCallback) {
+    console.error('[CALLBACK] ❌ Missing stkCallback in payload');
     return res.status(400).json({ message: 'Invalid callback payload.' });
   }
 
-  const transactionId = stkCallback.CheckoutRequestID;
+  // ✅ IDs
+  const merchantRequestId = stkCallback.MerchantRequestID;
+  const checkoutRequestId = stkCallback.CheckoutRequestID;
   const resultCode = stkCallback.ResultCode;
-  const status = resultCode === 0 ? 'success' : 'failed';
 
-  console.log(`[CALLBACK] Transaction: ${transactionId}, ResultCode: ${resultCode}, Status: ${status}`);
+  // 🔹 Map ResultCode → Status
+  let status = 'pending';
+  if (resultCode === 0) {
+    status = 'success';
+  } else if (resultCode === 1032) {
+    status = 'cancelled'; // User cancelled prompt
+  } else if ([1, 1037, 2001, 2002].includes(resultCode)) {
+    status = 'failed'; // Timeout, insufficient funds, expired, etc.
+  } else {
+    status = 'failed'; // Unknown code fallback
+  }
+
+  console.log(`[CALLBACK] 🔎 IDs: Merchant=${merchantRequestId}, Checkout=${checkoutRequestId}`);
+  console.log(`[CALLBACK] 🔎 ResultCode=${resultCode}, Mapped Status="${status}"`);
 
   try {
+    // 🔹 Always log payload to mpesa_logs
     await pool.query(
       'INSERT INTO mpesa_logs (transaction_id, status, payload) VALUES ($1, $2, $3)',
-      [transactionId, status, JSON.stringify(data)]
+      [checkoutRequestId, status, JSON.stringify(data)]
+    );
+    console.log('[CALLBACK] 📝 Logged to mpesa_logs table');
+
+    // 🔹 Update payments
+    const updateResult = await pool.query(
+      `UPDATE payments 
+       SET status = $1, updated_at = NOW() 
+       WHERE transaction = $2 OR checkout_id = $3`,
+      [status, merchantRequestId, checkoutRequestId]
     );
 
-    await pool.query(
-      'UPDATE payments SET status = $1, updated_at = NOW() WHERE transaction = $2',
-      [status, transactionId]
-    );
+    if (updateResult.rowCount === 0) {
+      console.warn(`[CALLBACK] ⚠️ No matching payment found for Merchant=${merchantRequestId} OR Checkout=${checkoutRequestId}`);
+    } else {
+      console.log(`[CALLBACK] 📝 Payment row updated (${updateResult.rowCount} row(s))`);
+    }
 
+    // 🔹 Only update member balances if payment success
     if (status === 'success') {
       const paymentResult = await pool.query(
-        'SELECT member_id, amount FROM payments WHERE transaction = $1',
-        [transactionId]
+        'SELECT member_id, amount FROM payments WHERE transaction = $1 OR checkout_id = $2',
+        [merchantRequestId, checkoutRequestId]
       );
 
-      if (paymentResult.rows.length) {
+      if (!paymentResult.rows.length) {
+        console.warn(`[CALLBACK] ⚠️ No payment row found for updating member`);
+      } else {
         const { member_id, amount } = paymentResult.rows[0];
-        const memberResult = await pool.query('SELECT total_paid, expected_contribution, name, email FROM members WHERE id = $1', [member_id]);
+        console.log(`[CALLBACK] 💰 Payment found: Member=${member_id}, Amount=${amount}`);
 
-        if (memberResult.rows.length) {
-          const totalPaid = parseFloat(memberResult.rows[0].total_paid || 0) + parseFloat(amount);
-          const expectedContribution = parseFloat(memberResult.rows[0].expected_contribution || 0);
+        const memberResult = await pool.query(
+          'SELECT total_paid, expected_contribution, name, email FROM members WHERE id = $1',
+          [member_id]
+        );
+
+        if (!memberResult.rows.length) {
+          console.warn(`[CALLBACK] ⚠️ Member ${member_id} not found`);
+        } else {
+          const member = memberResult.rows[0];
+          const totalPaid = parseFloat(member.total_paid || 0) + parseFloat(amount);
+          const expectedContribution = parseFloat(member.expected_contribution || 0);
           let balance = expectedContribution - totalPaid;
           let extra = 0;
 
@@ -216,21 +256,25 @@ paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
             [totalPaid, balance, extra, balance === 0 ? 'completed' : 'pending', member_id]
           );
 
-          // SEND EMAIL + PDF RECEIPT
-          await sendPaymentEmail(memberResult.rows[0].email, memberResult.rows[0].name, amount, transactionId);
+          console.log(`[CALLBACK] ✅ Member ${member_id} updated. totalPaid=${totalPaid}, balance=${balance}, extra=${extra}`);
 
-          console.log(`[CALLBACK] Member ${member_id} updated. totalPaid=${totalPaid}, balance=${balance}, extra=${extra}`);
+          // 📧 Email receipt
+          await sendPaymentEmail(member.email, member.name, amount, checkoutRequestId);
+          console.log(`[CALLBACK] 📧 Receipt sent to ${member.email}`);
         }
       }
+    } else {
+      console.log(`[CALLBACK] 🚫 Member update skipped because status="${status}"`);
     }
 
-    console.log(`[CALLBACK] Transaction ${transactionId} marked as "${status}" ✅`);
+    console.log(`[CALLBACK] ✅ Webhook processed successfully for Checkout=${checkoutRequestId}`);
     res.status(200).json({ message: 'Webhook processed successfully' });
   } catch (err) {
-    console.error('Webhook DB error:', err);
+    console.error('[CALLBACK] ❌ Webhook DB error:', err);
     res.status(500).json({ message: 'Error updating payment status.' });
   }
 });
+
 
 // ======= PAYMENT STATUS CHECK =======
 paymentRouter.get('/mpesa/status/:transactionId', async (req, res) => {
