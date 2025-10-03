@@ -113,8 +113,6 @@
 // });
 
 // export default db;
-
-
 import pkg from "pg";
 import dotenv from "dotenv";
 
@@ -143,7 +141,7 @@ CREATE TABLE IF NOT EXISTS members (
     password VARCHAR(255) NOT NULL,
     role VARCHAR(20) CHECK (role IN ('admin', 'member')) DEFAULT 'member',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    date DATE,
+    date TIMESTAMP, -- renamed to TIMESTAMP for consistency
     payment_status VARCHAR(20) CHECK (payment_status IN ('pending', 'completed', 'failed', 'success')) DEFAULT 'pending',
     amount NUMERIC(10, 2) DEFAULT 0.00,
     payment_amount_status VARCHAR(20) CHECK (payment_amount_status IN ('balance', 'bonus')),
@@ -196,7 +194,7 @@ async function initDB() {
   try {
     console.log("✅ Connecting to Neon PostgreSQL...");
 
-    // Just run queries directly; pool manages connections automatically
+    // Run queries directly; pool manages connections automatically
     await pool.query(membersTable);
     console.log("✅ Members table ready");
 
@@ -217,3 +215,4 @@ async function initDB() {
 initDB();
 
 export default pool;
+

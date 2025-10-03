@@ -312,7 +312,6 @@ router.post("/forgot/reset-password", async (req, res) => {
 //single member
 router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res) => {
   const memberId = req.member?.id;
-
   console.log("🔹 Incoming request for memberId:", memberId);
 
   if (!memberId) {
@@ -325,75 +324,76 @@ router.get('/saved/save/saving', authorize(['member', 'admin']), async (req, res
       m.name,
       m.email,
       m.phone,
-      COALESCE(m.member_since, m.created_at) AS member_since,
+      COALESCE(m.date, m.created_at) AS member_since,
       m.expected_contribution,
-      c.id AS contribution_id,
-      c.amount,
-      c.payment_method,
-      c.transaction_id,
-      c.payment_date
+      p.id AS payment_id,
+      p.amount,
+      p.status,
+      p.transaction,
+      p.date_paid
     FROM members m
-    LEFT JOIN contributions c ON m.id = c.member_id
+    LEFT JOIN payments p ON m.id = p.member_id
     WHERE m.id = $1
-    ORDER BY c.payment_date ASC;
+    ORDER BY p.date_paid ASC;
   `;
 
   try {
+    console.log("🔹 Executing SQL with memberId:", memberId);
     const { rows } = await db.query(sql, [memberId]);
     console.log("🔹 Rows returned:", rows.length);
 
-    if (rows.length === 0) 
+    if (rows.length === 0) {
       return res.status(404).json({ message: "Member not found." });
+    }
 
-    const member = rows[0];
+    // Pick first row for member info
+    const first = rows[0];
+    const member = {
+      id: first.member_id,
+      name: first.name || "N/A",
+      email: first.email || "N/A",
+      phone: first.phone || "N/A",
+      member_since: first.member_since
+        ? new Date(first.member_since).toISOString()
+        : "N/A",
+      expected_contribution: Number(first.expected_contribution) || 0,
+    };
 
-    console.log("🔹 Raw member data:", member);
-
-    // Map contributions safely
-    const contributions = rows
-      .filter(row => row.amount !== null)
-      .map(row => ({
-        amount: Number(row.amount),
-        payment_method: row.payment_method || "N/A",
-        transaction_id: row.transaction_id || "N/A",
-        payment_date: row.payment_date ? new Date(row.payment_date).toISOString() : null,
+    // Map payments safely
+    const payments = rows
+      .filter(r => r.amount !== null)
+      .map(r => ({
+        id: r.payment_id,
+        amount: Number(r.amount),
+        status: r.status || "pending",
+        transaction_id: r.transaction || "N/A",
+        date_paid: r.date_paid ? new Date(r.date_paid).toISOString() : null,
       }));
 
-    console.log("🔹 Contributions mapped:", contributions);
-
-    // Check expected_contribution type
-    console.log("🔹 Expected Contribution raw value:", member.expected_contribution, "Type:", typeof member.expected_contribution);
-
-    // Calculate total_paid dynamically
-    const totalPaid = contributions.reduce((acc, curr) => acc + curr.amount, 0);
-    console.log("🔹 Total Paid:", totalPaid);
-
-    // Calculate balance and extra_paid
-    const expectedContribution = Number(member.expected_contribution) || 0;
-    console.log("🔹 Expected Contribution after Number():", expectedContribution);
-    const balance = Math.max(expectedContribution - totalPaid, 0);
-    const extraPaid = Math.max(totalPaid - expectedContribution, 0);
-
-    console.log("🔹 Balance:", balance, "Extra Paid:", extraPaid);
+    // Calculate totals
+    const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
+    const balance = Math.max(member.expected_contribution - totalPaid, 0);
+    const extraPaid = Math.max(totalPaid - member.expected_contribution, 0);
 
     res.json({
-      name: member.name || "N/A",
-      email: member.email || "N/A",
-      phone: member.phone || "N/A",
-      member_since: member.member_since ? new Date(member.member_since).toISOString() : "N/A",
+      ...member,
       total_paid: totalPaid,
-      expected_contribution: expectedContribution,
       balance,
       extra_paid: extraPaid,
-      contributions,
-      message: totalPaid === 0 ? "You have not contributed yet." : "Thank you for your contribution."
+      payments,
+      message:
+        totalPaid === 0
+          ? "You have not contributed yet."
+          : "Thank you for your contribution.",
     });
 
   } catch (err) {
     console.error("❌ Database error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: "Internal server error", error: err.message });
   }
 });
+
+
 
 
 router.get("/transact/transactions/track", authorize(['member','admin']), async (req, res) => {

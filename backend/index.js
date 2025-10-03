@@ -43,9 +43,10 @@ app.use(helmet.hsts({ maxAge: 31536000, includeSubDomains: true }));
 app.use(helmet.permittedCrossDomainPolicies());
 app.use(helmet.noSniff());
 
-// Body parsing middleware
+// ✅ Body parsing middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true })); // ✅ only one parser for forms & nested objects
+app.use(cookieParser());
 
 // ✅ CORS configuration
 app.use(cors({
@@ -59,8 +60,6 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(cookieParser());
-
 // ✅ Webhook logger middleware
 app.post('/api/payment/mpesa/webhook', (req, res, next) => {
   console.log("✅ M-Pesa Webhook Hit at:", moment().format());
@@ -69,7 +68,7 @@ app.post('/api/payment/mpesa/webhook', (req, res, next) => {
   next(); // pass control to paymentRouter
 });
 
-// General request logger (after cors)
+// General request logger
 app.use((req, res, next) => {
   console.log(`[${moment().format()}] ${req.method} ${req.originalUrl}`);
   next();
@@ -79,7 +78,7 @@ app.use((req, res, next) => {
 app.use('/api/members', router);
 app.use('/api/withdraw', withdrawalRouter);
 app.use('/api/payment', paymentRouter);
-app.use('/api/contribution', contributionRouter); // Mount contributionRouter under a prefix
+app.use('/api/contribution', contributionRouter);
 
 // Cloudinary config
 cloudinary.v2.config({
