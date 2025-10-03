@@ -26,6 +26,7 @@ const Savings = () => {
     contributions: [],
     message: "",
   });
+
   const [loading, setLoading] = useState(true);
   const [hideCard, setHideCard] = useState({
     totalSavings: true,
@@ -45,10 +46,10 @@ const Savings = () => {
   const token = getToken();
 
   const formatCurrency = (value) =>
-    Number(value || 0).toLocaleString(undefined, {
+    `KES ${Number(value || 0).toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    });
+    })}`;
 
   useEffect(() => {
     const fetchSavings = async () => {
@@ -65,15 +66,22 @@ const Savings = () => {
 
         const res = response.data;
 
-        console.log("🔹 API Response:", res);
+        // Filter only completed contributions
+        const completedContributions = Array.isArray(res.contributions)
+          ? res.contributions.filter(
+              (c) => c.status && c.status.toLowerCase() === "completed"
+            )
+          : [];
 
-        // Safely parse numeric values
-        const totalPaid = Number(res.total_paid ?? 0);
-        const expectedContribution = Number(res.expected_contribution ?? 200000); // fallback
-        const balance = Number(res.balance ?? Math.max(expectedContribution - totalPaid, 0));
-        const extraPaid = Number(res.extra_paid ?? Math.max(totalPaid - expectedContribution, 0));
+        // Calculate totalPaid only from completed contributions
+        const totalPaid = completedContributions.reduce(
+          (sum, c) => sum + Number(c.amount ?? 0),
+          0
+        );
 
-        console.log("🔹 Parsed Values -> totalPaid:", totalPaid, "expectedContribution:", expectedContribution, "balance:", balance, "extraPaid:", extraPaid);
+        const expectedContribution = Number(res.expected_contribution ?? 200000);
+        const balance = Math.max(expectedContribution - totalPaid, 0);
+        const extraPaid = Math.max(totalPaid - expectedContribution, 0);
 
         setData({
           name: res.name || "User",
@@ -82,11 +90,11 @@ const Savings = () => {
           memberSince: res.member_since
             ? new Date(res.member_since).toLocaleDateString()
             : "N/A",
-          totalSavings: totalPaid,
+          totalSavings: totalPaid, // total from completed transactions only
           expectedAmount: expectedContribution,
           balance,
           extraPaid,
-          contributions: Array.isArray(res.contributions) ? res.contributions : [],
+          contributions: completedContributions, // only completed contributions in table
           message:
             res.message ||
             (totalPaid > 0
@@ -145,45 +153,47 @@ const Savings = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        {summaryCards.map((card) => (
-          <div
-            key={card.key}
-            className="relative p-6 rounded-3xl shadow-lg hover:shadow-xl transition cursor-pointer"
-            style={{ backgroundColor: `${colorMap[card.color]}1A` }}
-          >
-            <p className="text-gray-500 text-sm mb-1">{card.title}</p>
-            <p className="text-2xl font-bold mb-2">
-              {hideCard[card.key] ? "****" : `$${formatCurrency(card.value)}`}
-            </p>
-            <button
-              className="absolute top-4 right-4 text-gray-600 hover:text-gray-900 transition"
-              onClick={() =>
-                setHideCard({ ...hideCard, [card.key]: !hideCard[card.key] })
-              }
+        {summaryCards.map((card) => {
+          const progressPercent = data.expectedAmount
+            ? Math.min((card.value / data.expectedAmount) * 100, 100)
+            : 0;
+
+          return (
+            <div
+              key={card.key}
+              className="relative p-6 rounded-3xl shadow-lg hover:shadow-xl transition cursor-pointer"
+              style={{ backgroundColor: `${colorMap[card.color]}1A` }}
             >
-              {hideCard[card.key] ? <FaEye /> : <FaEyeSlash />}
-            </button>
-            <div className="h-2 w-full bg-gray-200 rounded-full mt-4">
-              <div
-                className="h-2 rounded-full"
-                style={{
-                  width: data.expectedAmount
-                    ? `${Math.min((card.value / data.expectedAmount) * 100, 100)}%`
-                    : "0%",
-                  backgroundColor: colorMap[card.color],
-                  transition: "width 0.5s ease-in-out",
-                }}
-              />
+              <p className="text-gray-500 text-sm mb-1">{card.title}</p>
+              <p className="text-2xl font-bold mb-2">
+                {hideCard[card.key] ? "****" : formatCurrency(card.value)}
+              </p>
+              <button
+                className="absolute top-4 right-4 text-gray-600 hover:text-gray-900 transition"
+                onClick={() =>
+                  setHideCard({ ...hideCard, [card.key]: !hideCard[card.key] })
+                }
+              >
+                {hideCard[card.key] ? <FaEye /> : <FaEyeSlash />}
+              </button>
+              <div className="h-2 w-full bg-gray-200 rounded-full mt-4">
+                <div
+                  className="h-2 rounded-full"
+                  style={{
+                    width: `${progressPercent}%`,
+                    backgroundColor: colorMap[card.color],
+                    transition: "width 0.5s ease-in-out",
+                  }}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Member Info */}
       <div className="bg-white p-6 rounded-3xl shadow-lg mb-12 border border-gray-200 hover:shadow-xl transition-all">
-        <h2 className="text-2xl font-semibold mb-6 text-gray-800">
-          Member Information
-        </h2>
+        <h2 className="text-2xl font-semibold mb-6 text-gray-800">Member Information</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-gray-700 font-medium">
           <p><FaUserAlt className="inline mr-2 text-gray-500" /> {data.name}</p>
           <p><FaEnvelope className="inline mr-2 text-gray-500" /> {data.email}</p>
@@ -192,7 +202,7 @@ const Savings = () => {
         </div>
       </div>
 
-      {/* Savings Table */}
+      {/* Savings Table (completed contributions only) */}
       <div ref={componentRef} className="overflow-x-auto mb-12">
         <table className="min-w-full bg-white rounded-3xl shadow-lg overflow-hidden border border-gray-200">
           <thead>
@@ -207,16 +217,18 @@ const Savings = () => {
               data.contributions.map((entry, idx) => (
                 <tr key={idx} className="border-b hover:bg-gray-50 transition">
                   <td className="p-4">
-                    {entry.payment_date ? new Date(entry.payment_date).toLocaleDateString() : "N/A"}
+                    {entry.payment_date
+                      ? new Date(entry.payment_date).toLocaleDateString()
+                      : "N/A"}
                   </td>
-                  <td className="p-4">{`$${formatCurrency(entry.amount)}`}</td>
+                  <td className="p-4">{formatCurrency(entry.amount)}</td>
                   <td className="p-4">{entry.payment_method || "N/A"}</td>
                 </tr>
               ))
             ) : (
               <tr>
                 <td colSpan="3" className="text-center p-6 text-gray-500">
-                  No savings records found.
+                  No completed savings records found.
                 </td>
               </tr>
             )}

@@ -18,17 +18,27 @@ const Pay = () => {
     e.preventDefault();
     setMessage(null);
 
-    if (phone.length !== 9 || !amount) {
+    if (!phone || !amount) {
       setMessage("Please enter a valid phone number and amount.");
       setStatus("error");
       return;
+    }
+
+    // Ensure phone number has correct format
+    let formattedPhone = phone;
+    if (!formattedPhone.startsWith("254")) {
+      if (formattedPhone.startsWith("0")) {
+        formattedPhone = "254" + formattedPhone.slice(1);
+      } else {
+        formattedPhone = "254" + formattedPhone;
+      }
     }
 
     setLoading(true);
 
     try {
       const response = await axios.post(`${BASE_URL}/api/payment/mpesa/pay`, {
-        phone: `254${phone}`,
+        phone: formattedPhone,
         amount,
       });
 
@@ -110,19 +120,18 @@ const Pay = () => {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-gray-700 font-medium mb-1">
-            Phone Number
-          </label>
+          <label className="block text-gray-700 font-medium mb-1">Phone Number</label>
           <div className="flex items-center border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-600">
-            <span className="px-3 bg-gray-100 text-gray-700">254</span>
+            <span className="px-3 bg-gray-100 text-gray-700">+254</span>
             <input
               type="tel"
-              placeholder="712345678"
+              placeholder="712345678 / 012345678"
               className="w-full px-4 py-2 focus:outline-none"
               value={phone}
               onChange={(e) => {
                 const val = e.target.value;
-                if (/^\d{0,9}$/.test(val) && val.startsWith("7")) setPhone(val);
+                // allow only digits, max 12
+                if (/^\d{0,12}$/.test(val)) setPhone(val);
               }}
               required
             />
@@ -130,9 +139,7 @@ const Pay = () => {
         </div>
 
         <div>
-          <label className="block text-gray-700 font-medium mb-1">
-            Amount (KES)
-          </label>
+          <label className="block text-gray-700 font-medium mb-1">Amount (KES)</label>
           <input
             type="number"
             placeholder="e.g. 100"

@@ -56,6 +56,7 @@ const getMpesaToken = async () => {
 };
 
 // ======= INITIATE PAYMENT =======
+// ======= INITIATE PAYMENT =======
 paymentRouter.post('/mpesa/pay', async (req, res) => {
   const phone = sanitizeInput(req.body.phone);
   const amount = parseFloat(req.body.amount);
@@ -65,41 +66,33 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
   }
 
   try {
+    // Check if member exists
     const result = await pool.query('SELECT id FROM members WHERE phone = $1', [phone]);
-    if (!result.rows.length) {
-      return res.status(404).json({ success: false, toast: true, message: 'Member not found.' });
-    }
+    const memberId = result.rows.length ? result.rows[0].id : null; // <-- memberId is null if not found
 
-    const memberId = result.rows[0].id;
     const token = await getMpesaToken();
-
-    // Safaricom timestamp format YYYYMMDDHHMMSS
     const timestamp = new Date().toISOString().replace(/[-T:]/g, '').slice(0, 14);
     const password = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
 
-    console.log(`[PAYMENT] Initiating STK push for ${phone}, amount: ${amount}...`);
-
-    const { data } = await axios.post(
-      `${BASE_URL}/mpesa/stkpush/v1/processrequest`,
-      {
-        BusinessShortCode: MPESA_SHORTCODE,
-        Password: password,
-        Timestamp: timestamp,
-        TransactionType: 'CustomerPayBillOnline',
-        Amount: amount,
-        PartyA: phone,
-        PartyB: MPESA_SHORTCODE,
-        PhoneNumber: phone,
-        CallBackURL: CALLBACK_URL,
-        AccountReference: 'Chama Payment',
-        TransactionDesc: 'Chama Membership Payment',
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    const { data } = await axios.post(`${BASE_URL}/mpesa/stkpush/v1/processrequest`, {
+      BusinessShortCode: MPESA_SHORTCODE,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: 'CustomerPayBillOnline',
+      Amount: amount,
+      PartyA: phone,
+      PartyB: MPESA_SHORTCODE,
+      PhoneNumber: phone,
+      CallBackURL: CALLBACK_URL,
+      AccountReference: 'Chama Payment',
+      TransactionDesc: 'Chama Membership Payment',
+    }, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
     const checkoutId = data.CheckoutRequestID;
-    console.log(`[PAYMENT] STK push sent. CheckoutID: ${checkoutId}`);
 
+    // Insert payment record; member_id may be null
     await pool.query(
       'INSERT INTO payments (member_id, phone, amount, status, transaction, date_paid) VALUES ($1, $2, $3, $4, $5, NOW())',
       [memberId, phone, amount, 'pending', checkoutId]
@@ -111,11 +104,12 @@ paymentRouter.post('/mpesa/pay', async (req, res) => {
       message: '📲 Payment initiated. Enter your M-Pesa PIN.',
       transaction_id: checkoutId,
     });
-  } catch (error) {
-    console.error('[STK Push Error]', error.response?.data || error.message);
+  } catch (err) {
+    console.error('[STK Push Error]', err.response?.data || err.message);
     res.status(500).json({ success: false, toast: true, message: 'STK Push failed. Please try again.' });
   }
 });
+
 
 // ======= M-PESA CALLBACK =======
 paymentRouter.post('/mpesa/webhook', express.json(), async (req, res) => {
