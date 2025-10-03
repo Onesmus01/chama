@@ -100,7 +100,7 @@ const sendPaymentEmail = async (memberEmail, memberName, amount, transactionId) 
     doc.text(`Transaction ID: ${transactionId}`);
     doc.text(`Date: ${new Date().toLocaleString()}`);
     doc.moveDown();
-    doc.text('Thank you for being a part of Chama!');
+    doc.text('Thank you for being a part of Chama!');//fine
     doc.end();
   } catch (err) {
     console.error('[EMAIL ERROR]', err);
